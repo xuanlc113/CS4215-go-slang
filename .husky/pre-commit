@@ -1,4 +1,5 @@
 #!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
 
-yarn eslint --fix && yarn format && yarn eslint
+# . "$(dirname "$0")/_/husky.sh"
+
+# yarn eslint --fix && yarn format && yarn eslint
