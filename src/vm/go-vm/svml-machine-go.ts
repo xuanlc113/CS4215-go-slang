@@ -401,7 +401,7 @@ function heap_get_String(address: number): string {
     let res_str = ""
     let i
     for (i = 0; i < str_length; i++) {
-        res_str += String.fromCharCode(heap_get_byte_at_offset(address+1, 1))
+        res_str += String.fromCharCode(heap_get_byte_at_offset(address+1, i))
     }
 
     return res_str
@@ -850,7 +850,7 @@ export function run(heapsize_words: number, instrs: Instruction[]) {
 // Remove bulitin environments and constant environments
 // That is under TODO
 let instrs: Instruction[] = [
-    {"tag": "ENTER_SCOPE", "num": 2},
+    {"tag": "ENTER_SCOPE", "num": 3},
     {"tag": "LDF", "arity": 1, "addr": 3},
     {"tag": "GOTO", "addr": 10},
     {"tag": "LD", "sym": "fact_iter", "pos": [0, 1]},
@@ -887,6 +887,11 @@ let instrs: Instruction[] = [
     {"tag": "LD", "sym": "fact", "pos": [0, 0]},
     {"tag": "LDC", "val": 5},
     {"tag": "CALL", "arity": 1},
+    {"tag": "POP"},
+    {"tag": "LDC", "val": "string"},
+    {"tag": "ASSIGN", "pos": [0, 2]},
+    {"tag": "POP"},
+    {"tag": "LD", "sym": "a", "pos": [0, 2]},
     {"tag": "EXIT_SCOPE"},
     {"tag": "DONE"}
     ]
