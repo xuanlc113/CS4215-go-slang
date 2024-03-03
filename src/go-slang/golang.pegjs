@@ -24,10 +24,10 @@
   function buildBinaryExpression(head, tail) {
     return tail.reduce(function(result, element) {
       return {
-        action: "BinaryExpression",
-        operator: element[1],
-        left: result,
-        right: element[3]
+        tag: "binop",
+        sym: element[1],
+        first: result,
+        second: element[3]
       };
     }, head);
   }
@@ -35,10 +35,10 @@
   function buildLogicalExpression(head, tail) {
     return tail.reduce(function(result, element) {
       return {
-        action: "LogicalExpression",
-        operator: element[1],
-        left: result,
-        right: element[3]
+        tag: "log",
+        sym: element[1],
+        first: result,
+        second: element[3]
       };
     }, head);
   }
@@ -76,8 +76,8 @@ Identifier
 IdentifierName "Name"
   = head:IdentifierStart tail:IdentifierPart* type:(__ InitType)?{
       return {
-        action: "Name",
-        name: head + tail.join(""),
+        tag: "nam",
+        sym: head + tail.join(""),
         type: extractOptional(type, 1) ? extractOptional(type, 1) : "Null"
       };
     }
@@ -138,11 +138,11 @@ Literal
   / StringLiteral
 
 NullLiteral
-  = NullToken { return { type: "Null", value: null }; }
+  = NullToken { return { tag: "lit", type: "Null", val: null }; }
 
 BooleanLiteral
-  = TrueToken  { return { type: "Boolean", value: true  }; }
-  / FalseToken { return { type: "Boolean", value: false }; }
+  = TrueToken  { return { tag: "lit", type: "Boolean", val: true  }; }
+  / FalseToken { return { tag: "lit", type: "Boolean", val: false }; }
 
 NumericLiteral "number"
   = literal:DecimalLiteral !(IdentifierStart / DecimalDigit) {
@@ -151,7 +151,7 @@ NumericLiteral "number"
 
 DecimalLiteral
   = DecimalIntegerLiteral {
-      return { type: "Integer", value: parseFloat(text()) };
+      return { tag: "lit", type: "Integer", val: parseFloat(text()) };
     }
 
 DecimalIntegerLiteral
@@ -166,10 +166,10 @@ NonZeroDigit
 
 StringLiteral "string"
   = '"' chars:DoubleStringCharacter* '"' {
-      return { type: "String", value: chars.join("") };
+      return { tag: "lit", type: "String", val: chars.join("") };
     }
   / "'" chars:SingleStringCharacter* "'" {
-      return { type: "String", value: chars.join("") };
+      return { tag: "lit", type: "String", val: chars.join("") };
     }
 
 DoubleStringCharacter
@@ -308,7 +308,7 @@ MemberExpression
     {
       return tail.reduce(function(result, element) {
         return {
-          action: "MemberExpression",
+          tag: "MemberExpression",
           object: result,
           property: element.property,
           computed: element.computed
@@ -322,16 +322,16 @@ NewExpression
 CallExpression
   = head:(
       callee:MemberExpression __ args:Arguments {
-        return { action: "CallExpression", callee: callee, arguments: args };
+        return { tag: "app", fun: callee, args: args };
       }
     )
     tail:(
         __ args:Arguments {
-          return { action: "CallExpression", arguments: args };
+          return { tag: "app", fun: args };
         }
       / __ "[" __ property:Expression __ "]" {
           return {
-            action: "MemberExpression",
+            tag: "MemberExpression",
             property: property,
             computed: true
           };
@@ -367,12 +367,12 @@ UnaryExpression
   / operator:UnaryOperator __ argument:UnaryExpression {
       var type = (operator === "++" || operator === "--")
         ? "UpdateExpression"
-        : "UnaryExpression";
+        : "unop";
 
       return {
-        action: type,
-        operator: operator,
-        argument: argument,
+        tag: type,
+        sym: operator,
+        arg: argument,
         prefix: true
       };
     }
@@ -445,10 +445,10 @@ AssignmentExpression
     right:AssignmentExpression
     {
       return {
-        action: "AssignmentExpression",
-        operator: "=",
-        left: left,
-        right: right
+        tag: "assmt",
+        op: "=",
+        sym: left,
+        expr: right
       };
     }
   / left:LeftHandSideExpression __
@@ -456,10 +456,10 @@ AssignmentExpression
     right:AssignmentExpression
     {
       return {
-        action: "AssignmentExpression",
-        operator: operator,
-        left: left,
-        right: right
+        tag: "assmt",
+        op: operator,
+        sym: left,
+        expr: right
       };
     }
   / ConditionalExpression
@@ -474,14 +474,14 @@ AssignmentOperator
 Expression
   = head:AssignmentExpression tail:(__ "," __ AssignmentExpression)* {
       return tail.length > 0
-        ? { action: "SequenceExpression", expressions: buildList(head, tail, 3) }
+        ? { tag: "SequenceExpression", expressions: buildList(head, tail, 3) }
         : head;
     }
 
 // ----- A.4 Statements -----
 
 Statement
-  = Block
+  = BlockStatement
   / VariableStatement
   / ConstantStatement
   / EmptyStatement
@@ -493,10 +493,10 @@ Statement
   / ReturnStatement
   / GoroutineStatement
 
-Block
+BlockStatement
   = "{" __ body:(StatementList __)? "}" {
       return {
-        action: "BlockStatement",
+        tag: "blk",
         body: optionalList(extractOptional(body, 0))
       };
     }
@@ -507,25 +507,27 @@ StatementList
 VariableStatement
     = VarToken __ id:Identifier __ type:(InitType)? init:(__ Initialiser)? EOS {
         return {
-            action: "VariableDeclaration",
-            id: id,
-            expression: extractOptional(init, 1)
+            tag: "var",
+            sym: id,
+            type: type,
+            expr: extractOptional(init, 1)
         }
     }
-    / id:Identifier init:(__ ShorthandInitialiser)? EOS {
+    / id:Identifier init:(__ ShorthandInitialiser) EOS {
         return {
-            action: "VariableDeclaration",
-            id: id,
-            expression: extractOptional(init, 1)
+            tag: "var",
+            sym: id,
+            expr: extractOptional(init, 1)
         }
     }
 
 ConstantStatement
     = ConstToken __ id:Identifier __ type:(InitType)? init:(__ Initialiser) EOS {
         return {
-            action: "ConstantDeclaration",
-            id: id,
-            expression: extractOptional(init, 1)
+            tag: "const",
+            sym: id,
+            type: type,
+            expr: extractOptional(init, 1)
         }
     }
 
@@ -536,7 +538,7 @@ ShorthandInitialiser
   = ":=" __ expression:AssignmentExpression { return expression; }
 
 EmptyStatement
-  = ";" { return { action: "EmptyStatement" }; }
+  = ";" { return { tag: "empty" }; }
 
 ExpressionStatement
   = !("{" / FunctionToken) expression:Expression EOS {
@@ -554,54 +556,54 @@ IfStatement
     alternate:Statement
     {
       return {
-        action: "IfStatement",
-        test: test,
-        consequent: consequent,
-        alternate: alternate
+        tag: "cond",
+        pred: test,
+        cons: consequent,
+        alt: alternate
       };
     }
   / IfToken __ test:Expression __
     consequent:Statement {
       return {
-        action: "IfStatement",
-        test: test,
-        consequent: consequent,
-        alternate: null
+        tag: "cond",
+        pred: test,
+        cons: consequent,
+        alt: null
       };
     }
 
 WhileStatement
   = WhileToken __ test:Expression __
     body:Statement
-    { return { action: "WhileStatement", test: test, body: body }; }
+    { return { tag: "while", pred: test, body: body }; }
 
 ContinueStatement
   = ContinueToken EOS {
-      return { action: "ContinueStatement", label: null };
+      return { tag: "continue", label: null };
     }
   / ContinueToken _ label:Identifier EOS {
-      return { action: "ContinueStatement", label: label };
+      return { tag: "continue", label: label };
     }
 
 BreakStatement
   = BreakToken EOS {
-      return { action: "BreakStatement", label: null };
+      return { tag: "break", label: null };
     }
   / BreakToken _ label:Identifier EOS {
-      return { action: "BreakStatement", label: label };
+      return { tag: "break", label: label };
     }
 
 ReturnStatement
   = ReturnToken EOS {
-      return { action: "ReturnStatement", argument: null };
+      return { tag: "ret", expr: null };
     }
   / ReturnToken _ argument:Expression EOS {
-      return { action: "ReturnStatement", argument: argument };
+      return { tag: "ret", expr: argument };
     }
 
 GoroutineStatement
   = GoroutineToken _ argument:CallExpression EOS {
-      return { action: "CallGoroutine", argument: argument }
+      return { tag: "goroutine", expr: argument }
     }
 
 // ----- A.5 Functions and Programs -----
@@ -613,9 +615,9 @@ FunctionDeclaration
     "{" __ body:FunctionBody __ "}"
     {
       return {
-        action: "FunctionDeclaration",
-        id: id,
-        params: optionalList(extractOptional(params, 0)),
+        tag: "func",
+        sym: id,
+        prms: optionalList(extractOptional(params, 0)),
         type: type,
         body: body
       };
@@ -626,9 +628,9 @@ FunctionDeclaration
     "{" __ body:FunctionBody __ "}"
     {
       return {
-        action: "FunctionDeclaration",
-        id: id,
-        params: optionalList(extractOptional(params, 0)),
+        tag: "func",
+        sym: id,
+        prms: optionalList(extractOptional(params, 0)),
         type: type,
         body: body
       };
@@ -640,9 +642,9 @@ FunctionExpression
     "{" __ body:FunctionBody __ "}"
     {
       return {
-        action: "FunctionExpression",
-        id: extractOptional(id, 0),
-        params: optionalList(extractOptional(params, 0)),
+        tag: "func",
+        sym: extractOptional(id, 0),
+        prms: optionalList(extractOptional(params, 0)),
         body: body
       };
     }
@@ -660,17 +662,14 @@ ReturnTypeList
 FunctionBody
   = body:SourceElements? {
       return {
-        action: "BlockStatement",
+        tag: "blk",
         body: optionalList(body)
       };
     }
 
 Program
   = body:SourceElements? {
-      return {
-        action: "Program",
-        body: optionalList(body)
-      };
+      return optionalList(body);
     }
 
 SourceElements
