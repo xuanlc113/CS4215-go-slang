@@ -13,7 +13,9 @@ import {
   SeqStatement,
   UnaryExpression,
   BinaryExpression,
-  AssignmentExpression
+  AssignmentExpression,
+  CondStatement,
+  WhileStatement
 } from '../go-slang/types'
 import { run } from '../vm/go-vm/svml-machine-go'
 
@@ -185,7 +187,25 @@ const compile_comp = {
     compile(comp.second, ce)
     instrs[wc++] = { tag: 'BINOP', sym: comp.sym }
   },
-  // log: (comp, ce) => {
+  // log: (comp: LogicalExpression, ce: string[][]) => {
+  //   let cond_expr: CondExprStatement
+  //   if (comp.sym == '&&') {
+  //     cond_expr = {
+  //       tag: 'cond_expr',
+  //       pred: comp.first,
+  //       cons: { tag: 'lit', type: 'Boolean', val: true },
+  //       alt: comp.second
+  //     }
+  //     compile(cond_expr, ce)
+  //   } else {
+  //     cond_expr = {
+  //       tag: 'cond_expr',
+  //       pred: comp.first,
+  //       cons: comp.second,
+  //       alt: { tag: 'lit', type: 'Boolean', val: true }
+  //     }
+  //     compile(cond_expr, ce)
+  //   }
   //   compile(
   //     comp.sym == '&&'
   //       ? { tag: 'cond_expr', pred: comp.frst, cons: { tag: 'lit', val: true }, alt: comp.scnd }
@@ -193,29 +213,29 @@ const compile_comp = {
   //     ce
   //   )
   // },
-  // cond: (comp, ce) => {
-  //   compile(comp.pred, ce)
-  //   const jump_on_false_instruction = { tag: 'JOF' }
-  //   instrs[wc++] = jump_on_false_instruction
-  //   compile(comp.cons, ce)
-  //   const goto_instruction = { tag: 'GOTO' }
-  //   instrs[wc++] = goto_instruction
-  //   const alternative_address = wc
-  //   jump_on_false_instruction.addr = alternative_address
-  //   compile(comp.alt, ce)
-  //   goto_instruction.addr = wc
-  // },
-  // while: (comp, ce) => {
-  //   const loop_start = wc
-  //   compile(comp.pred, ce)
-  //   const jump_on_false_instruction = { tag: 'JOF' }
-  //   instrs[wc++] = jump_on_false_instruction
-  //   compile(comp.body, ce)
-  //   instrs[wc++] = { tag: 'POP' }
-  //   instrs[wc++] = { tag: 'GOTO', addr: loop_start }
-  //   jump_on_false_instruction.addr = wc
-  //   instrs[wc++] = { tag: 'LDC', val: undefined }
-  // },
+  cond: (comp: CondStatement, ce: string[][]) => {
+    compile(comp.pred, ce)
+    const jump_on_false_instruction = { tag: 'JOF', addr: 0 }
+    instrs[wc++] = jump_on_false_instruction
+    compile(comp.cons, ce)
+    const goto_instruction = { tag: 'GOTO', addr: 0 }
+    instrs[wc++] = goto_instruction
+    const alternative_address = wc
+    jump_on_false_instruction.addr = alternative_address
+    compile(comp.alt, ce)
+    goto_instruction.addr = wc
+  },
+  while: (comp: WhileStatement, ce: string[][]) => {
+    const loop_start = wc
+    compile(comp.pred, ce)
+    const jump_on_false_instruction = { tag: 'JOF', addr: 0 }
+    instrs[wc++] = jump_on_false_instruction
+    compile(comp.body, ce)
+    instrs[wc++] = { tag: 'POP' }
+    instrs[wc++] = { tag: 'GOTO', addr: loop_start }
+    jump_on_false_instruction.addr = wc
+    instrs[wc++] = { tag: 'LDC', val: undefined }
+  },
   // app: (comp, ce) => {
   //   compile(comp.fun, ce)
   //   for (let arg of comp.args) {
@@ -266,9 +286,18 @@ const compile_comp = {
 }
 
 const testcode = `
-a := 1+2-4
-const b = 3
-a = a + b
+a := 6
+if a < 1 {
+  a = 2
+} else if a < 3 {
+  a = 5
+} else {
+  a = 4
+}
+while a < 10 {
+  a = a + 1
+}
+a
 `
 
 compile_program(parse(testcode))

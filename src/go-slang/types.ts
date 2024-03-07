@@ -14,6 +14,7 @@ export type GoStatement =
   | GoroutineStatement
   | GoExpression
   | BlkSeqStatement
+  | CondExprStatement
 
 export type GoLiteral = BooleanLiteral | IntLiteral | StringLiteral // | NullLiteral
 
@@ -56,16 +57,16 @@ export enum GoBinaryOperator {
   Minus = '-',
   Multiply = '*',
   Divide = '/',
-  Mod = '%'
-}
-
-export enum GoLogicalOperator {
+  Mod = '%',
   Equal = '==',
   NotEqual = '!=',
   MoreThan = '>',
   LessThan = '<',
   MoreThanOrEqual = '>=',
-  LessThanOrEqual = '<=',
+  LessThanOrEqual = '<='
+}
+
+export enum GoLogicalOperator {
   And = '&&',
   Or = '||'
 }
@@ -202,4 +203,11 @@ export interface BlockStatement {
 export interface SeqStatement {
   tag: 'seq'
   stmts: GoAction[]
+}
+
+export interface CondExprStatement {
+  tag: 'cond_expr'
+  pred: GoExpression
+  cons: BlockStatement | GoLiteral
+  alt: BlockStatement | GoLiteral
 }

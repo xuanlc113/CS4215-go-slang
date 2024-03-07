@@ -403,7 +403,7 @@ AdditiveOperator
 RelationalExpression
   = head:AdditiveExpression
     tail:(__ RelationalOperator __ AdditiveExpression)*
-    { return buildLogicalExpression(head, tail); }
+    { return buildBinaryExpression(head, tail); }
 
 RelationalOperator
   = "<="
@@ -414,7 +414,7 @@ RelationalOperator
 EqualityExpression
   = head:RelationalExpression
     tail:(__ EqualityOperator __ RelationalExpression)*
-    { return buildLogicalExpression(head, tail); }
+    { return buildBinaryExpression(head, tail); }
 
 EqualityOperator
   = "=="
@@ -496,7 +496,7 @@ Statement
 BlockStatement
   = "{" __ body:(StatementList __)? "}" {
       return {
-        tag: "blk",
+        tag: "blkseq",
         body: optionalList(extractOptional(body, 0))
       };
     }
@@ -662,7 +662,7 @@ ReturnTypeList
 FunctionBody
   = body:SourceElements? {
       return {
-        tag: "blk",
+        tag: "blkseq",
         body: optionalList(body)
       };
     }

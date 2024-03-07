@@ -15,7 +15,7 @@ export function parse(code: string): BlkSeqStatement {
 
 // const code = `
 // go f("ters", i)
-// func fact(n string, i int) int {
+// func fact(n string, i int) (int, bool) {
 //     return 1, true
 // }
 // fact(1)
@@ -40,8 +40,11 @@ export function parse(code: string): BlkSeqStatement {
 // var Ab = f(a)
 // `
 
-const code = `
-a = a + b
-`
+// const code = `
+// a := 1
+// if a == 1 {
+//   a = 2
+// }
+// `
 
-console.log(JSON.stringify(parse(code).body, null, 2))
+// console.log(JSON.stringify(parse(code).body, null, 2))
