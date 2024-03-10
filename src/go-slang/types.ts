@@ -14,7 +14,6 @@ export type GoStatement =
   | GoroutineStatement
   | GoExpression
   | BlkSeqStatement
-  | CondExprStatement
 
 export type GoLiteral = BooleanLiteral | IntLiteral | StringLiteral // | NullLiteral
 
@@ -203,11 +202,4 @@ export interface BlockStatement {
 export interface SeqStatement {
   tag: 'seq'
   stmts: GoAction[]
-}
-
-export interface CondExprStatement {
-  tag: 'cond_expr'
-  pred: GoExpression
-  cons: BlockStatement | GoLiteral
-  alt: BlockStatement | GoLiteral
 }

@@ -15,7 +15,8 @@ import {
   BinaryExpression,
   AssignmentExpression,
   CondStatement,
-  WhileStatement
+  WhileStatement,
+  LogicalExpression
 } from '../go-slang/types'
 import { run } from '../vm/go-vm/svml-machine-go'
 
@@ -187,32 +188,11 @@ const compile_comp = {
     compile(comp.second, ce)
     instrs[wc++] = { tag: 'BINOP', sym: comp.sym }
   },
-  // log: (comp: LogicalExpression, ce: string[][]) => {
-  //   let cond_expr: CondExprStatement
-  //   if (comp.sym == '&&') {
-  //     cond_expr = {
-  //       tag: 'cond_expr',
-  //       pred: comp.first,
-  //       cons: { tag: 'lit', type: 'Boolean', val: true },
-  //       alt: comp.second
-  //     }
-  //     compile(cond_expr, ce)
-  //   } else {
-  //     cond_expr = {
-  //       tag: 'cond_expr',
-  //       pred: comp.first,
-  //       cons: comp.second,
-  //       alt: { tag: 'lit', type: 'Boolean', val: true }
-  //     }
-  //     compile(cond_expr, ce)
-  //   }
-  //   compile(
-  //     comp.sym == '&&'
-  //       ? { tag: 'cond_expr', pred: comp.frst, cons: { tag: 'lit', val: true }, alt: comp.scnd }
-  //       : { tag: 'cond_expr', pred: cmd.frst, cons: cmd.scnd, alt: { tag: 'lit', val: false } },
-  //     ce
-  //   )
-  // },
+  log: (comp: LogicalExpression, ce: string[][]) => {
+    compile(comp.first, ce)
+    compile(comp.second, ce)
+    instrs[wc++] = { tag: 'LOGOP', sym: comp.sym }
+  },
   cond: (comp: CondStatement, ce: string[][]) => {
     compile(comp.pred, ce)
     const jump_on_false_instruction = { tag: 'JOF', addr: 0 }
@@ -286,16 +266,9 @@ const compile_comp = {
 }
 
 const testcode = `
-a := 6
-if a < 1 {
+a := 1
+if a == 1 && a < 2 {
   a = 2
-} else if a < 3 {
-  a = 5
-} else {
-  a = 4
-}
-while a < 10 {
-  a = a + 1
 }
 a
 `
