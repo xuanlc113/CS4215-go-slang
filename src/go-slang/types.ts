@@ -103,7 +103,7 @@ export interface StringLiteral {
 export interface CallExpression {
   tag: 'app'
   fun: Identifier
-  args?: GoExpression
+  args: GoExpression[]
 }
 
 export interface AssignmentExpression {
@@ -173,7 +173,7 @@ export interface BreakStatement {
 
 export interface ReturnStatement {
   tag: 'ret'
-  label: GoExpression
+  expr: GoExpression
 }
 
 export interface GoroutineStatement {

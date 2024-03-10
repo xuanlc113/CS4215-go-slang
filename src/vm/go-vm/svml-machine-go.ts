@@ -834,7 +834,7 @@ function initialize_machine(heapsize_words: number): void {
 
 export function run(heapsize_words: number, instrs: Instruction[]) {
   initialize_machine(heapsize_words)
-  // print_code()
+  print_code(instrs)
   while (!(instrs[PC].tag === 'DONE')) {
     // heap_display()
     // display(PC, "PC: ")
@@ -910,3 +910,20 @@ export function run(heapsize_words: number, instrs: Instruction[]) {
 //     ]
 
 // console.log(run(1000, instrs))
+
+const print_code = (instrs: Instruction[]) => {
+  for (let i = 0; i < instrs.length; i = i + 1) {
+    const instr = instrs[i]
+    console.log(
+      '',
+      String(i) +
+        ': ' +
+        instr.tag +
+        ' ' +
+        (instr.tag === 'GOTO' ? String(instr.addr) : '') +
+        (instr.tag === 'LDC' ? String(instr.val) : '') +
+        (instr.tag === 'ASSIGN' ? String(instr.sym) : '') +
+        (instr.tag === 'LD' ? String(instr.sym) : '')
+    )
+  }
+}

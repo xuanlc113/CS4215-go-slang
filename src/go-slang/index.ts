@@ -42,8 +42,8 @@ export function parse(code: string): BlkSeqStatement {
 
 // const code = `
 // a := 1
-// if a == 1 {
-//   a = 2
+// func f() {
+//   return 1
 // }
 // `
 

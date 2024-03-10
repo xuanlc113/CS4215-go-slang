@@ -16,7 +16,10 @@ import {
   AssignmentExpression,
   CondStatement,
   WhileStatement,
-  LogicalExpression
+  LogicalExpression,
+  FunctionStatement,
+  CallExpression,
+  ReturnStatement
 } from '../go-slang/types'
 import { run } from '../vm/go-vm/svml-machine-go'
 
@@ -67,6 +70,10 @@ function scan_for_locals(comp: GoAction): string[] {
     : comp.tag == 'var' || comp.tag == 'const' || comp.tag == 'func'
     ? [comp.sym.sym]
     : []
+}
+
+function extract_params(params: Identifier[]): string[] {
+  return params.map(p => p.sym)
 }
 
 function has_locals(comp: GoAction[]): boolean {
@@ -216,13 +223,13 @@ const compile_comp = {
     jump_on_false_instruction.addr = wc
     instrs[wc++] = { tag: 'LDC', val: undefined }
   },
-  // app: (comp, ce) => {
-  //   compile(comp.fun, ce)
-  //   for (let arg of comp.args) {
-  //     compile(arg, ce)
-  //   }
-  //   instrs[wc++] = { tag: 'CALL', arity: comp.args.length }
-  // },
+  app: (comp: CallExpression, ce: string[][]) => {
+    compile(comp.fun, ce)
+    for (const arg of comp.args) {
+      compile(arg, ce)
+    }
+    instrs[wc++] = { tag: 'CALL', arity: comp.args.length }
+  },
   assmt:
     // store precomputed position info in ASSIGN instruction
     (comp: AssignmentExpression, ce: string[][]) => {
@@ -247,30 +254,37 @@ const compile_comp = {
   const: (comp: ConstStatement, ce: string[][]) => {
     compile(comp.expr, ce)
     instrs[wc++] = { tag: 'ASSIGN', pos: compile_time_environment_position(ce, comp.sym.sym) }
+  },
+  ret: (comp: ReturnStatement, ce: string[][]) => {
+    compile(comp.expr, ce)
+    if (comp.expr.tag === 'app') {
+      // tail call: turn CALL into TAILCALL
+      instrs[wc - 1].tag = 'TAIL_CALL'
+    } else {
+      instrs[wc++] = { tag: 'RESET' }
+    }
+  },
+  func: (comp: FunctionStatement, ce: string[][]) => {
+    instrs[wc++] = { tag: 'LDF', arity: comp.prms.length, addr: wc + 1 }
+    // jump over the body of the lambda expression
+    const goto_instruction = { tag: 'GOTO', addr: 0 }
+    instrs[wc++] = goto_instruction
+    // extend compile-time environment
+    compile(comp.body, compile_time_environment_extend(extract_params(comp.prms), ce))
+    instrs[wc++] = { tag: 'LDC', val: undefined }
+    instrs[wc++] = { tag: 'RESET' }
+    goto_instruction.addr = wc
+
+    instrs[wc++] = { tag: 'ASSIGN', pos: compile_time_environment_position(ce, comp.sym.sym) }
   }
-  // ret: (comp, ce) => {
-  //   compile(comp.expr, ce)
-  //   if (comp.expr.tag === 'app') {
-  //     // tail call: turn CALL into TAILCALL
-  //     instrs[wc - 1].tag = 'TAIL_CALL'
-  //   } else {
-  //     instrs[wc++] = { tag: 'RESET' }
-  //   }
-  // },
-  // fun: (comp, ce) => {
-  //   compile(
-  //     { tag: 'const', sym: comp.sym, expr: { tag: 'lam', prms: comp.prms, body: comp.body } },
-  //     ce
-  //   )
-  // }
 }
 
 const testcode = `
-a := 1
-if a == 1 && a < 2 {
-  a = 2
+var a = 1
+func f() {
+  return 2
 }
-a
+a = a + f()
 `
 
 compile_program(parse(testcode))
