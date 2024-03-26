@@ -15,3 +15,22 @@ export interface Instruction {
   pos?: [number, number] // For
   num?: number
 }
+
+export interface ThreadEnv {
+  OS: number[]
+  PC: number
+  RTS: number[]
+  E: number
+}
+
+export type ThreadPool = ThreadPoolItem[]
+
+export interface ThreadPoolItem {
+  instrs: Instruction[]
+  env: ThreadEnv
+  microcode: Microcode
+}
+
+export interface Microcode {
+  [key: string]: (instr: Instruction) => void
+}

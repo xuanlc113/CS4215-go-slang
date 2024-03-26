@@ -19,7 +19,8 @@ import {
   LogicalExpression,
   FunctionStatement,
   CallExpression,
-  ReturnStatement
+  ReturnStatement,
+  GoroutineStatement
 } from '../go-slang/types'
 import { run } from '../vm/go-vm/svml-machine-go'
 
@@ -276,23 +277,35 @@ const compile_comp = {
     goto_instruction.addr = wc
 
     instrs[wc++] = { tag: 'ASSIGN', pos: compile_time_environment_position(ce, comp.sym.sym) }
+  },
+  goroutine: (comp: GoroutineStatement, ce: string[][]) => {
+    compile(comp.expr.fun, ce)
+    for (const arg of comp.expr.args) {
+      compile(arg, ce)
+    }
+    instrs[wc++] = { tag: 'START_THREAD', arity: comp.expr.args.length }
   }
 }
 
 const testcode = `
-var a = 1
-func f() {
-  return 2
+func f(a) {
+  a = a + 2
+  b := a
+  c := b + 1
 }
-a = a + f()
+go f(2)
+go f(2)
+go f(2)
+f(2)
+a := 1
 `
 
 compile_program(parse(testcode))
 printInstr()
 
 function printInstr() {
-  for (let i = 0; i < instrs.length; i++) {
-    console.log(instrs[i])
-  }
+  // for (let i = 0; i < instrs.length; i++) {
+  //   console.log(instrs[i])
+  // }
   console.log(run(1000, instrs))
 }

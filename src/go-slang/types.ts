@@ -178,7 +178,7 @@ export interface ReturnStatement {
 
 export interface GoroutineStatement {
   tag: 'goroutine'
-  expr: FunctionStatement
+  expr: CallExpression
 }
 
 export interface FunctionStatement {

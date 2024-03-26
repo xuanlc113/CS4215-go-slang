@@ -5,7 +5,15 @@
  * homework assignments from JS to TS
  */
 
-import { Operand, Instruction } from './svml-constants'
+import { cloneDeep } from 'lodash'
+import {
+  Operand,
+  Instruction,
+  ThreadEnv,
+  ThreadPool,
+  Microcode,
+  ThreadPoolItem
+} from './svml-constants'
 
 // Global Variables for HEAP
 let HEAP: DataView
@@ -484,10 +492,10 @@ function TS_value_to_address(x: any): number {
 }
 
 // VM
-let OS: number[] // JS array of words
-let PC: number // JS number
-let E: number // heap addresses
-let RTS: number[] // JS array of addresses
+// let OS: number[] // JS array of words
+// let PC: number // JS number
+// let E: number // heap addresses
+// let RTS: number[] // JS array of addresses
 // HEAP declared above
 
 const push = (array: any[], ...items: any[]) => {
@@ -502,7 +510,7 @@ const push = (array: any[], ...items: any[]) => {
 // without changing the array
 const peek = (array: any[], address: number) => array.slice(-1 - address)[0]
 
-function pop_OS(): number {
+function pop_OS(OS: number[]): number {
   const res = OS.pop()
   if (is_undefined(res)) {
     throw Error('Popped OS and got undefined')
@@ -510,7 +518,7 @@ function pop_OS(): number {
   return res as number
 }
 
-function pop_RTS(): number {
+function pop_RTS(RTS: number[]): number {
   const res = RTS.pop()
   if (is_undefined(res)) {
     throw Error('Popped RTS and got undefined')
@@ -726,91 +734,198 @@ function get_instr_arity(instr: Instruction): number {
   return instr.arity as number
 }
 
-const microcode: { [key: string]: (instr: Instruction) => void } = {
-  LDC: instr => push(OS, TS_value_to_address(instr.val)),
-  UNOP: instr => {
-    push(OS, apply_unop(get_instr_sym(instr), pop_OS()))
-  },
-  BINOP: instr => push(OS, apply_binop(get_instr_sym(instr), pop_OS(), pop_OS())),
-  LOGOP: instr => push(OS, apply_logop(get_instr_sym(instr), pop_OS(), pop_OS())),
-  POP: instr => OS.pop(),
-  JOF: instr => (PC = is_True(pop_OS()) ? PC : get_instr_addr(instr)),
-  GOTO: instr => (PC = get_instr_addr(instr)),
-  ENTER_SCOPE: instr => {
-    push(RTS, heap_allocate_Blockframe(E))
-    const num = get_instr_num(instr)
-    const frame_address = heap_allocate_Frame(num)
-    E = heap_Environment_extend(frame_address, E)
-    for (let i = 0; i < num; i++) {
-      heap_set_child(frame_address, i, Unassigned)
-    }
-  },
-  EXIT_SCOPE: instr => (E = heap_get_Blockframe_environment(pop_RTS())),
-  LD: instr => {
-    const val = heap_get_Environment_value(E, get_instr_pos(instr))
-    if (is_Unassigned(val)) throw Error('Access of unassigned variable')
-    // error("access of unassigned variable")
-    push(OS, val)
-  },
-  ASSIGN: instr => heap_set_Environment_value(E, get_instr_pos(instr), peek(OS, 0)),
-  LDF: instr => {
-    const arity = get_instr_arity(instr)
+function create_microcode(env: ThreadEnv) {
+  const microcode: Microcode = {
+    LDC: instr => push(env.OS, TS_value_to_address(instr.val)),
+    UNOP: instr => {
+      push(env.OS, apply_unop(get_instr_sym(instr), pop_OS(env.OS)))
+    },
+    BINOP: instr => push(env.OS, apply_binop(get_instr_sym(instr), pop_OS(env.OS), pop_OS(env.OS))),
+    LOGOP: instr => push(env.OS, apply_logop(get_instr_sym(instr), pop_OS(env.OS), pop_OS(env.OS))),
+    POP: instr => env.OS.pop(),
+    JOF: instr => (env.PC = is_True(pop_OS(env.OS)) ? env.PC : get_instr_addr(instr)),
+    GOTO: instr => (env.PC = get_instr_addr(instr)),
+    ENTER_SCOPE: instr => {
+      push(env.RTS, heap_allocate_Blockframe(env.E))
+      const num = get_instr_num(instr)
+      const frame_address = heap_allocate_Frame(num)
+      env.E = heap_Environment_extend(frame_address, env.E)
+      for (let i = 0; i < num; i++) {
+        heap_set_child(frame_address, i, Unassigned)
+      }
+    },
+    EXIT_SCOPE: instr => (env.E = heap_get_Blockframe_environment(pop_RTS(env.RTS))),
+    LD: instr => {
+      const val = heap_get_Environment_value(env.E, get_instr_pos(instr))
+      if (is_Unassigned(val)) throw Error('Access of unassigned variable')
+      // error("access of unassigned variable")
+      push(env.OS, val)
+    },
+    ASSIGN: instr => heap_set_Environment_value(env.E, get_instr_pos(instr), peek(env.OS, 0)),
+    LDF: instr => {
+      const arity = get_instr_arity(instr)
 
-    const addr = get_instr_addr(instr)
-    const closure_address = heap_allocate_Closure(arity, addr, E)
-    push(OS, closure_address)
-  },
-  CALL: instr => {
-    const arity = get_instr_arity(instr)
-    const fun = peek(OS, arity)
-    // if (is_Builtin(fun)) {
-    //     return apply_builtin(heap_get_Builtin_id(fun))
-    // }
-    const new_PC = heap_get_Closure_pc(fun)
-    const new_frame = heap_allocate_Frame(arity)
+      const addr = get_instr_addr(instr)
+      const closure_address = heap_allocate_Closure(arity, addr, env.E)
+      push(env.OS, closure_address)
+    },
+    CALL: instr => {
+      const arity = get_instr_arity(instr)
+      const fun = peek(env.OS, arity)
+      // if (is_Builtin(fun)) {
+      //     return apply_builtin(heap_get_Builtin_id(fun))
+      // }
+      const new_PC = heap_get_Closure_pc(fun)
+      const new_frame = heap_allocate_Frame(arity)
 
-    for (let i = arity - 1; i >= 0; i--) {
-      heap_set_child(new_frame, i, pop_OS())
-    }
-    pop_OS()
-    OS.pop() // pop fun
-    push(RTS, heap_allocate_Callframe(E, PC))
-    E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun))
-    PC = new_PC
-  },
-  TAIL_CALL: instr => {
-    const arity = get_instr_arity(instr)
-    const fun = peek(OS, arity)
-    // if (is_Builtin(fun)) {
-    //     return apply_builtin(heap_get_Builtin_id(fun))
-    // }
-    const new_PC = heap_get_Closure_pc(fun)
-    const new_frame = heap_allocate_Frame(arity)
-    for (let i = arity - 1; i >= 0; i--) {
-      heap_set_child(new_frame, i, pop_OS())
-    }
-    OS.pop() // pop fun
-    // don't push on RTS here
-    E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun))
-    PC = new_PC
-  },
-  RESET: instr => {
-    // keep popping...
-    const top_frame = pop_RTS()
-    if (is_Callframe(top_frame)) {
-      // ...until top frame is a call frame
-      PC = heap_get_Callframe_pc(top_frame)
-      E = heap_get_Callframe_environment(top_frame)
-    } else {
-      PC--
+      for (let i = arity - 1; i >= 0; i--) {
+        heap_set_child(new_frame, i, pop_OS(env.OS))
+      }
+      pop_OS(env.OS)
+      env.OS.pop() // pop fun
+      push(env.RTS, heap_allocate_Callframe(env.E, env.PC))
+      env.E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun))
+      env.PC = new_PC
+    },
+    TAIL_CALL: instr => {
+      const arity = get_instr_arity(instr)
+      const fun = peek(env.OS, arity)
+      // if (is_Builtin(fun)) {
+      //     return apply_builtin(heap_get_Builtin_id(fun))
+      // }
+      const new_PC = heap_get_Closure_pc(fun)
+      const new_frame = heap_allocate_Frame(arity)
+      for (let i = arity - 1; i >= 0; i--) {
+        heap_set_child(new_frame, i, pop_OS(env.OS))
+      }
+      env.OS.pop() // pop fun
+      // don't push on RTS here
+      env.E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun))
+      env.PC = new_PC
+    },
+    RESET: instr => {
+      // keep popping...
+      const top_frame = pop_RTS(env.RTS)
+      if (is_Callframe(top_frame)) {
+        // ...until top frame is a call frame
+        env.PC = heap_get_Callframe_pc(top_frame)
+        env.E = heap_get_Callframe_environment(top_frame)
+      } else {
+        env.PC--
+      }
     }
   }
+
+  return microcode
 }
 
-function initialize_machine(heapsize_words: number): void {
-  OS = []
-  PC = 0
-  RTS = []
+// const microcode: { [key: string]: (instr: Instruction) => void } = {
+//   LDC: instr => push(OS, TS_value_to_address(instr.val)),
+//   UNOP: instr => {
+//     push(OS, apply_unop(get_instr_sym(instr), pop_OS(OS)))
+//   },
+//   BINOP: instr => push(OS, apply_binop(get_instr_sym(instr), pop_OS(OS), pop_OS(OS))),
+//   LOGOP: instr => push(OS, apply_logop(get_instr_sym(instr), pop_OS(OS), pop_OS(OS))),
+//   POP: instr => OS.pop(),
+//   JOF: instr => (PC = is_True(pop_OS(OS)) ? PC : get_instr_addr(instr)),
+//   GOTO: instr => (PC = get_instr_addr(instr)),
+//   ENTER_SCOPE: instr => {
+//     push(RTS, heap_allocate_Blockframe(E))
+//     const num = get_instr_num(instr)
+//     const frame_address = heap_allocate_Frame(num)
+//     E = heap_Environment_extend(frame_address, E)
+//     for (let i = 0; i < num; i++) {
+//       heap_set_child(frame_address, i, Unassigned)
+//     }
+//   },
+//   EXIT_SCOPE: instr => (E = heap_get_Blockframe_environment(pop_RTS(RTS))),
+//   LD: instr => {
+//     const val = heap_get_Environment_value(E, get_instr_pos(instr))
+//     if (is_Unassigned(val)) throw Error('Access of unassigned variable')
+//     // error("access of unassigned variable")
+//     push(OS, val)
+//   },
+//   ASSIGN: instr => heap_set_Environment_value(E, get_instr_pos(instr), peek(OS, 0)),
+//   LDF: instr => {
+//     const arity = get_instr_arity(instr)
+
+//     const addr = get_instr_addr(instr)
+//     const closure_address = heap_allocate_Closure(arity, addr, E)
+//     push(OS, closure_address)
+//   },
+//   CALL: instr => {
+//     const arity = get_instr_arity(instr)
+//     const fun = peek(OS, arity)
+//     // if (is_Builtin(fun)) {
+//     //     return apply_builtin(heap_get_Builtin_id(fun))
+//     // }
+//     const new_PC = heap_get_Closure_pc(fun)
+//     const new_frame = heap_allocate_Frame(arity)
+
+//     for (let i = arity - 1; i >= 0; i--) {
+//       heap_set_child(new_frame, i, pop_OS(OS))
+//     }
+//     pop_OS(OS)
+//     OS.pop() // pop fun
+//     push(RTS, heap_allocate_Callframe(E, PC))
+//     E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun))
+//     PC = new_PC
+//   },
+//   TAIL_CALL: instr => {
+//     const arity = get_instr_arity(instr)
+//     const fun = peek(OS, arity)
+//     // if (is_Builtin(fun)) {
+//     //     return apply_builtin(heap_get_Builtin_id(fun))
+//     // }
+//     const new_PC = heap_get_Closure_pc(fun)
+//     const new_frame = heap_allocate_Frame(arity)
+//     for (let i = arity - 1; i >= 0; i--) {
+//       heap_set_child(new_frame, i, pop_OS(OS))
+//     }
+//     OS.pop() // pop fun
+//     // don't push on RTS here
+//     E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun))
+//     PC = new_PC
+//   },
+//   RESET: instr => {
+//     // keep popping...
+//     const top_frame = pop_RTS(RTS)
+//     if (is_Callframe(top_frame)) {
+//       // ...until top frame is a call frame
+//       PC = heap_get_Callframe_pc(top_frame)
+//       E = heap_get_Callframe_environment(top_frame)
+//     } else {
+//       PC--
+//     }
+//   }
+// }
+
+// function initialize_machine(heapsize_words: number): void {
+//   OS = []
+//   PC = 0
+//   RTS = []
+//   HEAP = heap_make(heapsize_words)
+//   heap_size = heapsize_words
+//   // initialize free list:
+//   // every free node carries the address
+//   // of the next free node as its first word
+//   let i = 0
+//   for (i = 0; i <= heapsize_words - node_size; i = i + node_size) {
+//     heap_set(i, i + node_size)
+//   }
+//   // the empty free list is represented by -1
+//   heap_set(i - node_size, -1)
+//   free = 0
+//   PC = 0
+//   allocate_literal_values()
+//   // const builtins_frame = allocate_builtin_frame()
+//   // const constants_frame = allocate_constant_frame()
+//   E = heap_allocate_Environment(0)
+//   // E = heap_Environment_extend(builtins_frame, E)
+//   // E = heap_Environment_extend(constants_frame, E)
+// }
+
+export function initialize_heap(heapsize_words: number): void {
   HEAP = heap_make(heapsize_words)
   heap_size = heapsize_words
   // initialize free list:
@@ -823,40 +938,93 @@ function initialize_machine(heapsize_words: number): void {
   // the empty free list is represented by -1
   heap_set(i - node_size, -1)
   free = 0
-  PC = 0
   allocate_literal_values()
-  // const builtins_frame = allocate_builtin_frame()
-  // const constants_frame = allocate_constant_frame()
-  E = heap_allocate_Environment(0)
-  // E = heap_Environment_extend(builtins_frame, E)
-  // E = heap_Environment_extend(constants_frame, E)
+}
+
+export function initialize_env(root?: ThreadEnv): ThreadEnv {
+  if (root == null) {
+    return {
+      OS: [],
+      PC: 0,
+      RTS: [],
+      E: heap_allocate_Environment(0)
+    }
+  }
+
+  const env = cloneDeep(root)
+  env.OS.splice(1, env.OS.length - 2)
+  env.RTS.splice(1, env.RTS.length - 2)
+  return env
 }
 
 export function run(heapsize_words: number, instrs: Instruction[]) {
-  initialize_machine(heapsize_words)
   print_code(instrs)
-  while (!(instrs[PC].tag === 'DONE')) {
-    // heap_display()
-    // display(PC, "PC: ")
-    // display(instrs[PC].tag, "instr: ")
-    // print_OS("\noperands:            ");
-    // print_RTS("\nRTS:            ");
-    const instr = instrs[PC++]
-    //display(instrs[PC].tag, "next instruction: ")
-    microcode[instr.tag](instr)
-    //display(free)
-    // mark_sweep()
-    // heap_Environment_display(E)
-    // console.log(instr)
-    // console.log(OS)
+  initialize_heap(heapsize_words)
+
+  const mainEnv: ThreadEnv = initialize_env()
+  const threadPool: ThreadPool = [
+    {
+      instrs: instrs,
+      env: mainEnv,
+      microcode: create_microcode(mainEnv)
+    }
+  ]
+
+  let cur = 0
+  while (threadPool.length > 0) {
+    const thread = threadPool[cur]
+    for (let i = 0; i < 3; i++) {
+      if (!run_next_instr(thread.instrs, thread.env, thread.microcode, threadPool, cur)) {
+        if (cur == 0) {
+          return address_to_TS_value(peek(thread.env.OS, 0))
+        }
+        threadPool.splice(cur, 1)
+      }
+    }
+
+    cur++
+    if (cur >= threadPool.length) {
+      cur = 0
+    }
   }
-  //display(OS, "\nfinal operands:           ")
-  //print_OS()
-  // console.log(JSON.stringify(OS))
-  // console.log(address_to_TS_value(90))
-  // heap_display("S")
-  // console.log(OS)
-  return address_to_TS_value(peek(OS, 0))
+
+  return false
+}
+
+function run_next_instr(
+  instrs: Instruction[],
+  env: ThreadEnv,
+  microcode: Microcode,
+  threadPool: ThreadPool,
+  threadId: number
+) {
+  if (instrs[env.PC].tag === 'DONE') {
+    return false
+  }
+
+  if (instrs[env.PC].tag === 'START_THREAD') {
+    const thread_instrs = instrs.slice(0, env.PC + 1)
+    thread_instrs[env.PC].tag = 'CALL'
+    thread_instrs.push({ tag: 'EXIT_SCOPE' }, { tag: 'DONE' })
+    const newEnv = initialize_env(env)
+
+    const threadItem: ThreadPoolItem = {
+      instrs: thread_instrs,
+      env: newEnv,
+      microcode: create_microcode(newEnv)
+    }
+    threadPool.push(threadItem)
+
+    env.PC++
+
+    return true
+  }
+
+  const instr = instrs[env.PC++]
+  microcode[instr.tag](instr)
+  console.log(threadId, ':', instr)
+
+  return true
 }
 
 // Generate instructions fron the HW compiler
