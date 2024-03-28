@@ -69,8 +69,8 @@ function scan_for_locals(comp: GoAction): string[] {
   return comp.tag === 'seq'
     ? comp.stmts.reduce((acc: string[], x) => acc.concat(scan_for_locals(x)), [])
     : comp.tag == 'var' || comp.tag == 'const' || comp.tag == 'func'
-    ? [comp.sym.sym]
-    : []
+      ? [comp.sym.sym]
+      : []
 }
 
 function extract_params(params: Identifier[]): string[] {
@@ -101,7 +101,7 @@ const compile_time_environment_extend = (vs: any, e: any) => {
 
 function compile_time_environment_position(env: string[][], x: string): [number, number] {
   let frame_index = env.length
-  while (value_index(env[--frame_index], x) === -1) {}
+  while (value_index(env[--frame_index], x) === -1) { }
   return [frame_index, value_index(env[frame_index], x)]
 }
 
@@ -290,14 +290,11 @@ const compile_comp = {
 const testcode = `
 func f(a) {
   a = a + 2
-  b := a
-  c := b + 1
+  c := a + 1
+  return 99
 }
 go f(2)
-go f(2)
-go f(2)
-f(2)
-a := 1
+go f(3)
 `
 
 compile_program(parse(testcode))
