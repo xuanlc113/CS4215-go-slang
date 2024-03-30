@@ -1,14 +1,4 @@
 {{
-  var TYPES_TO_PROPERTY_NAMES = {
-    CallExpression:   "callee",
-    MemberExpression: "object",
-  };
-
-  function filledArray(count, value) {
-    return Array.apply(null, new Array(count))
-      .map(function() { return value; });
-  }
-
   function extractOptional(optional, index) {
     return optional ? optional[index] : null;
   }
@@ -61,9 +51,6 @@ WhiteSpace "whitespace"
   / "\v"
   / "\f"
   / " "
-
-LineTerminator
-  = [\n\r\u2028\u2029]
 
 LineTerminatorSequence "end of line"
   = "\n"
@@ -145,7 +132,7 @@ BooleanLiteral
   / FalseToken { return { tag: "lit", type: "Boolean", val: false }; }
 
 NumericLiteral "number"
-  = literal:DecimalLiteral !(IdentifierStart / DecimalDigit) {
+  = literal:DecimalLiteral {
       return literal;
     }
 
@@ -156,13 +143,7 @@ DecimalLiteral
 
 DecimalIntegerLiteral
   = "0"
-  / NonZeroDigit DecimalDigit*
-
-DecimalDigit
-  = [0-9]
-
-NonZeroDigit
-  = [1-9]
+  / [1-9] [0-9]*
 
 StringLiteral "string"
   = '"' chars:DoubleStringCharacter* '"' {
@@ -173,45 +154,10 @@ StringLiteral "string"
     }
 
 DoubleStringCharacter
-  = !('"' / "\\" / LineTerminator) SourceCharacter { return text(); }
-  / "\\" sequence:EscapeSequence { return sequence; }
-  / LineContinuation
+  = !'"' SourceCharacter { return text(); }
 
 SingleStringCharacter
-  = !("'" / "\\" / LineTerminator) SourceCharacter { return text(); }
-  / "\\" sequence:EscapeSequence { return sequence; }
-  / LineContinuation
-
-LineContinuation
-  = "\\" LineTerminatorSequence { return ""; }
-
-EscapeSequence
-  = CharacterEscapeSequence
-  / "0" !DecimalDigit { return "\0"; }
-
-CharacterEscapeSequence
-  = SingleEscapeCharacter
-  / NonEscapeCharacter
-
-SingleEscapeCharacter
-  = "'"
-  / '"'
-  / "\\"
-  / "b"  { return "\b"; }
-  / "f"  { return "\f"; }
-  / "n"  { return "\n"; }
-  / "r"  { return "\r"; }
-  / "t"  { return "\t"; }
-  / "v"  { return "\v"; }
-
-NonEscapeCharacter
-  = !(EscapeCharacter / LineTerminator) SourceCharacter { return text(); }
-
-EscapeCharacter
-  = SingleEscapeCharacter
-  / DecimalDigit
-  / "x"
-  / "u"
+  = !"'" SourceCharacter { return text(); }
 
 // Tokens
 
@@ -240,16 +186,9 @@ __
 _
   = WhiteSpace*
 
-// Automatic Semicolon Insertion
-
 EOS
   = __ ";"
   / _ LineTerminatorSequence
-  / _ &"}"
-  / __ EOF
-
-EOF
-  = !.
 
 // ----- A.3 Expressions -----
 
@@ -257,92 +196,40 @@ PrimaryExpression
   = Identifier
   / Literal
   / ArrayLiteral
-  / "(" __ expression:Expression __ ")" { return expression; }
 
 ArrayLiteral
-  = "[" __ elision:(Elision __)? "]" {
+  = "[" __ elements:ElementList __ "]" {
       return {
-        type: "ArrayExpression",
-        elements: optionalList(extractOptional(elision, 0))
-      };
-    }
-  / "[" __ elements:ElementList __ "]" {
-      return {
-        type: "ArrayExpression",
+        type: "arr",
         elements: elements
-      };
-    }
-  / "[" __ elements:ElementList __ "," __ elision:(Elision __)? "]" {
-      return {
-        type: "ArrayExpression",
-        elements: elements.concat(optionalList(extractOptional(elision, 0)))
       };
     }
 
 ElementList
   = head:(
-      elision:(Elision __)? element:AssignmentExpression {
-        return optionalList(extractOptional(elision, 0)).concat(element);
+      element:AssignmentExpression {
+        return [element];
       }
     )
     tail:(
-      __ "," __ elision:(Elision __)? element:AssignmentExpression {
-        return optionalList(extractOptional(elision, 0)).concat(element);
+      __ "," __ element:AssignmentExpression {
+        return [element];
       }
     )*
-    { return Array.prototype.concat.apply(head, tail); }
-
-Elision
-  = "," commas:(__ ",")* { return filledArray(commas.length + 1, null); }
+    {return head.concat(tail)}
 
 MemberExpression
-  = head:(
-        PrimaryExpression
-      / FunctionExpression
-    )
-    tail:(
-        __ "[" __ property:Expression __ "]" {
-          return { property: property, computed: true };
-        }
-    )*
-    {
-      return tail.reduce(function(result, element) {
-        return {
-          tag: "MemberExpression",
-          object: result,
-          property: element.property,
-          computed: element.computed
-        };
-      }, head);
+  = head: Identifier "[" __ mem:Expression __ "]" {
+    return {
+      tag: "arrmem",
+      arr: head,
+      idx: mem
     }
-
-NewExpression
-  = MemberExpression
+  }
 
 CallExpression
-  = head:(
-      callee:MemberExpression __ args:Arguments {
-        return { tag: "app", fun: callee, args: args };
-      }
-    )
-    tail:(
-        __ args:Arguments {
-          return { tag: "app", fun: args };
-        }
-      / __ "[" __ property:Expression __ "]" {
-          return {
-            tag: "MemberExpression",
-            property: property,
-            computed: true
-          };
-        }
-    )*
-    {
-      return tail.reduce(function(result, element) {
-        element[TYPES_TO_PROPERTY_NAMES[element.type]] = result;
-
-        return element;
-      }, head);
+ = callee:Identifier __ args:Arguments {
+      return { tag: "app", fun: callee, args: args };
     }
 
 Arguments
@@ -357,20 +244,14 @@ ArgumentList
 
 LeftHandSideExpression
   = CallExpression
-  / NewExpression
-
-PostfixExpression
-  = LeftHandSideExpression
+  / MemberExpression
+  / PrimaryExpression
 
 UnaryExpression
-  = PostfixExpression
+  = LeftHandSideExpression
   / operator:UnaryOperator __ argument:UnaryExpression {
-      var type = (operator === "++" || operator === "--")
-        ? "UpdateExpression"
-        : "unop";
-
       return {
-        tag: type,
+        tag: "unop",
         sym: operator,
         arg: argument,
         prefix: true
@@ -397,8 +278,8 @@ AdditiveExpression
     { return buildBinaryExpression(head, tail); }
 
 AdditiveOperator
-  = $("+" ![+=])
-  / $("-" ![-=])
+  = $("+" !"=")
+  / $("-" !"=")
 
 RelationalExpression
   = head:AdditiveExpression
@@ -472,10 +353,8 @@ AssignmentOperator
   / "-="
 
 Expression
-  = head:AssignmentExpression tail:(__ "," __ AssignmentExpression)* {
-      return tail.length > 0
-        ? { tag: "SequenceExpression", expressions: buildList(head, tail, 3) }
-        : head;
+  = head:AssignmentExpression {
+      return head;
     }
 
 // ----- A.4 Statements -----
@@ -532,10 +411,10 @@ ConstantStatement
     }
 
 Initialiser
-  = "=" !"=" __ expression:AssignmentExpression { return expression; }
+  = "=" !"=" __ expression:AssignmentExpression EOS { return expression; }
 
 ShorthandInitialiser
-  = ":=" __ expression:AssignmentExpression { return expression; }
+  = ":=" __ expression:AssignmentExpression EOS { return expression; }
 
 EmptyStatement
   = ";" { return { tag: "empty" }; }
