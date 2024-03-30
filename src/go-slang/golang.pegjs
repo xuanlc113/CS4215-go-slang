@@ -90,6 +90,7 @@ IdentifierPart
     = [a-zA-Z0-9]
     / "_"
     / "-"
+    / "."
 
 ReservedWord
   = Keyword
@@ -411,10 +412,10 @@ ConstantStatement
     }
 
 Initialiser
-  = "=" !"=" __ expression:AssignmentExpression EOS { return expression; }
+  = "=" !"=" __ expression:AssignmentExpression { return expression; }
 
 ShorthandInitialiser
-  = ":=" __ expression:AssignmentExpression EOS { return expression; }
+  = ":=" __ expression:AssignmentExpression { return expression; }
 
 EmptyStatement
   = ";" { return { tag: "empty" }; }

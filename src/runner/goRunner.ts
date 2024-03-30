@@ -36,11 +36,11 @@ import { run } from '../vm/go-vm/svml-machine-go'
 //   })
 // }
 
-const builtins = {}
+const builtins = ['print', 'sleep', 'wgAdd', 'wgWait', 'wgDone', 'muLock', 'muUnlock']
 
 const constants = {}
 
-const builtin_compile_frame: string[] = Object.keys(builtins)
+const builtin_compile_frame: string[] = builtins
 const constant_compile_frame: string[] = Object.keys(constants)
 const global_compile_environment: string[][] = [builtin_compile_frame, constant_compile_frame]
 
@@ -69,8 +69,8 @@ function scan_for_locals(comp: GoAction): string[] {
   return comp.tag === 'seq'
     ? comp.stmts.reduce((acc: string[], x) => acc.concat(scan_for_locals(x)), [])
     : comp.tag == 'var' || comp.tag == 'const' || comp.tag == 'func'
-      ? [comp.sym.sym]
-      : []
+    ? [comp.sym.sym]
+    : []
 }
 
 function extract_params(params: Identifier[]): string[] {
@@ -101,7 +101,7 @@ const compile_time_environment_extend = (vs: any, e: any) => {
 
 function compile_time_environment_position(env: string[][], x: string): [number, number] {
   let frame_index = env.length
-  while (value_index(env[--frame_index], x) === -1) { }
+  while (value_index(env[--frame_index], x) === -1) {}
   return [frame_index, value_index(env[frame_index], x)]
 }
 
@@ -288,13 +288,15 @@ const compile_comp = {
 }
 
 const testcode = `
-func f(a) {
-  a = a + 2
-  c := a + 1
-  return 99
+func f(ms int) {
+  sleep(ms)
+  print(ms)
 }
-go f(2)
-go f(3)
+
+go f(10)
+go f(30)
+go f(20)
+sleep(6000)
 `
 
 compile_program(parse(testcode))
