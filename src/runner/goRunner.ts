@@ -293,10 +293,10 @@ func f(ms int) {
   print(ms)
 }
 
-go f(10)
-go f(30)
-go f(20)
-sleep(6000)
+go f(1000)
+go f(3000)
+go f(2000)
+sleep(4000)
 `
 
 compile_program(parse(testcode))

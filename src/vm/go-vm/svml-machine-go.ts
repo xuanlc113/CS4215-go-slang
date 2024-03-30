@@ -939,6 +939,7 @@ export function run(heapsize_words: number, instrs: Instruction[]) {
           return address_to_TS_value(peek(thread.env.OS, 0))
         }
         threadPool.splice(cur, 1)
+        break
       }
     }
 
