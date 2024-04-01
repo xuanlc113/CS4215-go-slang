@@ -128,7 +128,7 @@ function set_blk_seq(comp: GoAction): GoAction {
       if (comp.body.length == 0) {
         return { tag: 'seq', stmts: [] }
       } else if (comp.body.length == 1) {
-        return comp.body[0]
+        return set_blk_seq(comp.body[0])
       } else {
         return { tag: 'seq', stmts: comp.body }
       }
@@ -288,15 +288,13 @@ const compile_comp = {
 }
 
 const testcode = `
-func f(ms int) {
-  sleep(ms)
-  print(ms)
+i := 0
+for i < 3 {
+  go func() {
+    print("hello")
+  }()
+  i = i + 1
 }
-
-go f(1000)
-go f(3000)
-go f(2000)
-sleep(4000)
 `
 
 compile_program(parse(testcode))

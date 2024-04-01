@@ -41,12 +41,9 @@ export function parse(code: string): BlkSeqStatement {
 // `
 
 // const code = `
-// func f(a) {
-//   a = a + 2
-//   c := a + 1
-//   return 99
-// }
+// go func() {}()
 // go f()
+// func() {}()
 // `
 
 // console.log(JSON.stringify(parse(code).body, null, 2))

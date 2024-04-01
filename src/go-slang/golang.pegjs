@@ -36,6 +36,15 @@
   function optionalList(value) {
     return value !== null ? value : [];
   }
+
+  function anonymousSym() {
+    var functionName = 'd' + Math.floor(Math.random()*1000001);
+    return {
+      tag: "nam",
+      sym: functionName,
+      type: null
+    }
+  }
 }}
 
 Start
@@ -66,6 +75,18 @@ IdentifierName "Name"
         tag: "nam",
         sym: head + tail.join(""),
         type: extractOptional(type, 1) ? extractOptional(type, 1) : "Null"
+      };
+    }
+
+PlainIdentifier
+  = !ReservedWord name:PlainIdentifierName { return name; }
+
+PlainIdentifierName
+  = head:IdentifierStart tail:IdentifierPart* {
+      return {
+        tag: "nam",
+        sym: head + tail.join(""),
+        type: "Null"
       };
     }
 
@@ -248,8 +269,27 @@ LeftHandSideExpression
   / MemberExpression
   / PrimaryExpression
 
+PostfixExpression
+  = argument:LeftHandSideExpression _ operator:PostfixOperator {
+      return {
+        tag: "assmt",
+        op: operator,
+        sym: argument,
+        expr: {
+          "tag": "lit",
+          "type": "Integer",
+          "val": 1
+        }
+      };
+    }
+  / LeftHandSideExpression
+
+PostfixOperator
+  = "++"
+  / "--"
+
 UnaryExpression
-  = LeftHandSideExpression
+  = PostfixExpression
   / operator:UnaryOperator __ argument:UnaryExpression {
       return {
         tag: "unop",
@@ -368,10 +408,13 @@ Statement
   / ExpressionStatement
   / IfStatement
   / WhileStatement
+  / ForStatement
   / ContinueStatement
   / BreakStatement
   / ReturnStatement
   / GoroutineStatement
+  / FunctionDeclaration
+  / AnonymousFunction
 
 BlockStatement
   = "{" __ body:(StatementList __)? "}" {
@@ -385,7 +428,36 @@ StatementList
   = head:Statement tail:(__ Statement)* { return buildList(head, tail, 1); }
 
 VariableStatement
-    = VarToken __ id:Identifier __ type:(InitType)? init:(__ Initialiser)? EOS {
+    = VarToken __ ids:VariableList __ type:InitType __ inits:InitialiserList {
+      if (ids.length != inits.length) {
+        error("different number of variables and expressions")
+      }
+
+      const assmts = []
+
+      for (let i = 0; i < ids.length; i++) {
+        assmts.push(
+          {
+            tag: "var",
+            sym: ids[i],
+            type: type,
+            expr: inits[i]
+          }
+        )
+      }
+
+      return {
+        tag: "blkseq",
+        body: assmts
+      }
+    }
+    / VarToken __ ids:VariableList __ type:InitType {
+      return ids.map(id => {
+        id.type = type
+        return id
+      })
+    }
+    / VarToken __ id:Identifier __ type:(InitType)? init:(__ Initialiser)? {
         return {
             tag: "var",
             sym: id,
@@ -393,22 +465,32 @@ VariableStatement
             expr: extractOptional(init, 1)
         }
     }
-    / id:Identifier init:(__ ShorthandInitialiser) EOS {
+    / id:Identifier init:(__ ShorthandInitialiser) {
         return {
             tag: "var",
             sym: id,
             expr: extractOptional(init, 1)
         }
     }
+    
+VariableList
+  = head:PlainIdentifier tail:(__ "," __ PlainIdentifier)+ {
+      return buildList(head, tail, 3);
+    }
 
 ConstantStatement
-    = ConstToken __ id:Identifier __ type:(InitType)? init:(__ Initialiser) EOS {
+    = ConstToken __ id:Identifier __ type:(InitType)? init:(__ Initialiser) {
         return {
             tag: "const",
             sym: id,
             type: type,
             expr: extractOptional(init, 1)
         }
+    }
+
+InitialiserList
+  = "=" !"=" __ head:AssignmentExpression tail:(__ "," __ AssignmentExpression)+ {
+      return buildList(head, tail, 3);
     }
 
 Initialiser
@@ -421,13 +503,7 @@ EmptyStatement
   = ";" { return { tag: "empty" }; }
 
 ExpressionStatement
-  = !("{" / FunctionToken) expression:Expression EOS {
-    return expression;
-      // return {
-      //   type: "ExpressionStatement",
-      //   expression: expression
-      // };
-    }
+  = !("{" / FunctionToken) expression:Expression EOS { return expression; }
 
 IfStatement
   = IfToken __ test:Expression __
@@ -457,6 +533,14 @@ WhileStatement
     body:Statement
     { return { tag: "while", pred: test, body: body }; }
 
+ForStatement
+  = ForToken __ test:Expression __
+  body:Statement
+  { return { tag: "while", pred: test, body: body }; }
+  / ForToken __ init:VariableStatement __ ";" __ test:Expression __ ";" __ update:AssignmentExpression __
+  body:Statement
+  {return {tag:"for", init: init, pred: test, body: body, update: update} }
+
 ContinueStatement
   = ContinueToken EOS {
       return { tag: "continue", label: null };
@@ -477,13 +561,18 @@ ReturnStatement
   = ReturnToken EOS {
       return { tag: "ret", expr: null };
     }
-  / ReturnToken _ argument:Expression EOS {
+  / ReturnToken __ argument:Expression EOS {
       return { tag: "ret", expr: argument };
     }
 
 GoroutineStatement
-  = GoroutineToken _ argument:CallExpression EOS {
+  = GoroutineToken __ argument:CallExpression EOS {
       return { tag: "goroutine", expr: argument }
+    }
+  / GoroutineToken __ expr:AnonymousFunction EOS {
+      const call = expr.body[1]
+      expr.body[1] = { tag: "goroutine", expr: call }
+      return expr
     }
 
 // ----- A.5 Functions and Programs -----
@@ -515,18 +604,34 @@ FunctionDeclaration
         body: body
       };
     }
+  / AnonymousFunction
 
-FunctionExpression
-  = FunctionToken __ id:(Identifier __)?
+AnonymousFunction
+  = FunctionToken __
     "(" __ params:(FormalParameterList __)? ")" __
+    type:(InitType)? __
     "{" __ body:FunctionBody __ "}"
+    __ args:Arguments
     {
+      const sym = anonymousSym()
       return {
-        tag: "func",
-        sym: extractOptional(id, 0),
-        prms: optionalList(extractOptional(params, 0)),
-        body: body
-      };
+        tag: "blkseq",
+        body: [
+          {
+            tag: "func",
+            sym: sym,
+            prms: optionalList(extractOptional(params, 0)),
+            type: type,
+            body: body
+          },
+          {
+            tag:"app",
+            fun: sym,
+            args: args
+          }
+        ]
+          
+      }
     }
 
 FormalParameterList
