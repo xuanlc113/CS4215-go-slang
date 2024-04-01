@@ -232,8 +232,8 @@ const builtin_implementation = {
     return address
   },
   sleep: (env: ThreadEnv) => {
-    const val = address_to_TS_value(pop_OS(env.OS)) as number
-    env.sleep = Date.now() + val
+    const val = address_to_TS_value(pop_OS(env.OS)) as number + Date.now()
+    env.sleep = heap_allocate_Number(val)
   }
 }
 
@@ -454,7 +454,7 @@ function heap_allocate_String(s: string): number {
   for (i = 0; i < s.length; i++) {
     heap_set_byte_at_offset(str_address + 1, i, s.charCodeAt(i))
   }
-
+  
   return str_address
 }
 
@@ -958,7 +958,7 @@ function run_next_instr(
   threadPool: ThreadPool,
   threadId: number
 ) {
-  if (Date.now() < env.sleep) {
+  if (Date.now() < (address_to_TS_value(env.sleep) as number)) {
     return true
   }
 

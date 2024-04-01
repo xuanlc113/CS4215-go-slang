@@ -99,6 +99,10 @@ InitType
           return "Boolean";
         case "string":
           return "String";
+        case "WaitGroup":
+          return "WaitGroup";
+        case "Mutex":
+          return "Mutex";
         default:
           return "Null";
       } 
@@ -134,11 +138,15 @@ Keyword
   / BooleanToken
   / StringToken
   / GoroutineToken
+  / WaitGroupToken
+  / MutexToken
 
 Type
   = IntegerToken
   / BooleanToken
   / StringToken
+  / WaitGroupToken
+  / MutexToken
 
 Literal
   = NullLiteral
@@ -201,6 +209,8 @@ IntegerToken    = "int"        !IdentifierPart
 BooleanToken    = "bool"       !IdentifierPart
 StringToken     = "string"     !IdentifierPart
 GoroutineToken  = "go"         !IdentifierPart
+WaitGroupToken  = "WaitGroup"  !IdentifierPart
+MutexToken      = "Mutex"      !IdentifierPart
 
 __
   = (WhiteSpace / LineTerminatorSequence)*
