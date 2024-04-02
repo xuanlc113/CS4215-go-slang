@@ -138,8 +138,6 @@ Keyword
   / BooleanToken
   / StringToken
   / GoroutineToken
-  / WaitGroupToken
-  / MutexToken
 
 Type
   = IntegerToken

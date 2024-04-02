@@ -10,9 +10,14 @@ export interface Instruction {
 
   addr?: number // For JOF, GOTO, LDF
 
-  arity?: number // For LDF, CALL, TAIL_CALL
+  arity?: number // For CALL, TAIL_CALL
 
-  pos?: [number, number] // For
+  pos?: [number, number] // For nam
+
+  method_pos?: [number, number] // For LDM
+
+  type?: string   // For ALLOCATE
+
   num?: number
 }
 
@@ -21,7 +26,9 @@ export interface ThreadEnv {
   PC: number
   RTS: number[]
   E: number
-  sleep: number
+  sleep: number     // addr to sleep arg
+  wg_count: number  // addr to waitgroup
+  mutex: number     // addr to mutex
 }
 
 export type ThreadPool = ThreadPoolItem[]

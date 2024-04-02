@@ -170,22 +170,24 @@ function heap_get_4_bytes_at_offset(address: number, offset: number): number {
 }
 
 // Heap Pointer Tags
-const False_tag = 0
-const True_tag = 1
-const Number_tag = 2
-const Null_tag = 3
-const Unassigned_tag = 4
+const False_tag         = 0
+const True_tag          = 1
+const Number_tag        = 2
+const Null_tag          = 3
+const Unassigned_tag    = 4
 // const Undefined_tag      = 5
-const Blockframe_tag = 6
-const Callframe_tag = 7
-const Closure_tag = 8
-const Frame_tag = 9 // 0000 1001
-const Environment_tag = 10 // 0000 1010
+const Blockframe_tag    = 6
+const Callframe_tag     = 7
+const Closure_tag       = 8
+const Frame_tag         = 9 // 0000 1001
+const Environment_tag   = 10 // 0000 1010
 // const Pair_tag           = 11
-const Builtin_tag = 12
+const Builtin_tag       = 12
 // const Pointer_tag        = 13
 // const Goroutine_tag      = 14
-const String_tag = 15
+const String_tag        = 15
+const WaitGroup_tag     = 16
+const Mutex_tag         = 17
 
 // Manually Allocate Literal Values on the HEAP
 let False: number
@@ -234,7 +236,87 @@ const builtin_implementation = {
   sleep: (env: ThreadEnv) => {
     const val = address_to_TS_value(pop_OS(env.OS)) as number + Date.now()
     env.sleep = heap_allocate_Number(val)
-  }
+  },
+  Add: (env: ThreadEnv) => {
+    const arg = pop_OS(env.OS) // Argument to the method
+    const fun = pop_OS(env.OS) // Method to be put back on OS later
+    const obj = pop_OS(env.OS) // Obj whose method is invoked
+    env.OS.push(fun)
+    if (!is_WaitGroup(obj)) {
+        // error handling
+        return
+    }
+    const curr_wg_cnt = heap_get_WaitGroup_counter(obj)
+    const new_wg_cnt = curr_wg_cnt + (address_to_TS_value(arg) as number)
+    if (new_wg_cnt < 0) {
+        console.log("Throw Panic")
+        // not sure what to do here
+    }
+    heap_set_WaitGroup_counter(obj, new_wg_cnt)
+  },
+  Wait: (env: ThreadEnv) => {
+    const fun = pop_OS(env.OS) // Method to be put back on OS later
+    const obj = pop_OS(env.OS) // Obj whose method is invoked
+    env.OS.push(fun)
+    if (!is_WaitGroup(obj)) {
+        // error handling
+        return
+    }
+    // Block until counter is 0
+    const wg_count = heap_get_WaitGroup_counter(obj)
+    if (wg_count > 0) {
+        env.wg_count = obj
+    }
+  },
+  Done: (env: ThreadEnv) => {
+    const fun = pop_OS(env.OS) // Method to be put back on OS later
+    const obj = pop_OS(env.OS) // Obj whose method is invoked
+    env.OS.push(fun)
+    if (!is_WaitGroup(obj)) {
+        // error handling
+        console.log("obj is not a waitgroup")
+        return
+    }
+    const curr_wg_cnt = heap_get_WaitGroup_counter(obj)
+    heap_set_WaitGroup_counter(obj, curr_wg_cnt - 1)
+  },
+  Lock: (env: ThreadEnv) => {
+    const fun = pop_OS(env.OS)
+    const obj = pop_OS(env.OS)
+    env.OS.push(fun)
+    if (!is_Mutex(obj)) {
+        // error handling
+        console.log("obj is not a mutex")
+        return
+    }
+    const mutex_state = heap_get_Mutex_State(obj)
+    if (mutex_state == MUTEX_UNLOCKED_STATE) {
+        heap_set_Mutex(obj, MUTEX_LOCKED_STATE)
+    }
+    else
+    {
+        env.mutex = obj
+    }
+
+  },
+  Unlock: (env: ThreadEnv) => {
+    const fun = pop_OS(env.OS)
+    const obj = pop_OS(env.OS)
+    env.OS.push(fun)
+    if (!is_Mutex(obj)) {
+        // error handling
+        console.log("obj is not a mutex")
+        return
+    }
+    const mutex_state = heap_get_Mutex_State(obj)
+    if (mutex_state == MUTEX_LOCKED_STATE) {
+        heap_set_Mutex(obj, MUTEX_UNLOCKED_STATE)
+    }
+    else
+    {
+        throw Error("Unlock mutex called but mutex was not locked")
+    }
+  },  
 }
 
 const builtins: BuiltinMap = {}
@@ -474,6 +556,57 @@ function is_String(address: number): boolean {
   return heap_get_tag(address) === String_tag
 }
 
+// WaitGroup
+// [1 byte tag, 4 bytes unused,
+//  2 bytes #children, 1 byte unused]
+// followed by the number, one word
+// note: #children is 1
+function heap_allocate_WaitGroup(): number {
+    const wg_address = heap_allocate(WaitGroup_tag, 2)
+    heap_set(wg_address + 1, 0)
+    return wg_address
+  }
+  
+function heap_get_WaitGroup_counter(address: number): number {
+  return heap_get(address + 1)
+}
+  
+function heap_set_WaitGroup_counter(address: number, n: number): void {
+  heap_set(address + 1, n)
+}
+
+function is_WaitGroup(address: number): boolean {
+  return heap_get_tag(address) === WaitGroup_tag
+}
+
+// Mutex
+// [1 byte tag, 4 bytes unused,
+//  2 bytes #children, 1 byte unused]
+// followed by the number, one word
+// 0 is unlocked
+// 1 is 
+
+const MUTEX_UNLOCKED_STATE = 0
+const MUTEX_LOCKED_STATE = 1
+
+function heap_allocate_Mutex(): number {
+    const mutex_address = heap_allocate(Mutex_tag, 2)
+    heap_set(mutex_address + 1, MUTEX_UNLOCKED_STATE)
+    return mutex_address
+  }
+  
+function heap_set_Mutex(address: number, state: number): void {
+    heap_set(address + 1, state)
+}
+  
+function heap_get_Mutex_State(address: number): number {
+  return heap_get(address + 1)
+}
+
+function is_Mutex(address: number): boolean {
+  return heap_get_tag(address) === Mutex_tag
+}
+
 // conversions between addresses and TS_value
 //
 function address_to_TS_value(x: number): Operand {
@@ -506,6 +639,14 @@ function address_to_TS_value(x: number): Operand {
 
   if (is_String(x)) {
     return heap_get_String(x)
+  }
+
+  if (is_WaitGroup(x)) {
+    return '<waitgroup>'
+  }
+
+  if (is_Mutex(x)) {
+    return '<mutex>'
   }
   return undefined
 }
@@ -780,6 +921,13 @@ function get_instr_pos(instr: Instruction): [number, number] {
   return instr.pos as [number, number]
 }
 
+function get_instr_method_pos(instr: Instruction): [number, number] {
+    if (is_undefined(instr.method_pos)) {
+        throw Error('Missing method pos in instruction: ' + instr.tag)
+      }
+      return instr.method_pos as [number, number]
+}
+
 function get_instr_num(instr: Instruction): number {
   if (is_undefined(instr.num)) {
     throw Error('Missing num in instruction: ' + instr.tag)
@@ -821,7 +969,30 @@ function create_microcode(env: ThreadEnv) {
       // error("access of unassigned variable")
       push(env.OS, val)
     },
-    ASSIGN: instr => heap_set_Environment_value(env.E, get_instr_pos(instr), peek(env.OS, 0)),
+    LDM: instr => {
+        // This is the address to the object
+        const val = heap_get_Environment_value(env.E, get_instr_pos(instr))
+        if (is_Unassigned(val)) throw Error('Access of unassigned variable')
+        // error("access of unassigned variable")
+        push(env.OS, val)
+
+        // Next one is address to the function
+        const method_val = heap_get_Environment_value(env.E, get_instr_method_pos(instr))
+        if (is_Unassigned(method_val)) throw Error('Access of unassigned variable')
+        // error("access of unassigned variable")
+        push(env.OS, method_val)
+    },
+    ALLOCATE: instr => {
+        if (instr.type == "WaitGroup") {
+            push(env.OS, heap_allocate_WaitGroup())
+        }
+        else if (instr.type == "Mutex") {
+            push(env.OS, heap_allocate_Mutex())
+        }
+    },
+    ASSIGN: instr => {
+        heap_set_Environment_value(env.E, get_instr_pos(instr), peek(env.OS, 0))
+    },
     LDF: instr => {
       const arity = get_instr_arity(instr)
 
@@ -906,14 +1077,18 @@ export function initialize_env(root?: ThreadEnv): ThreadEnv {
       PC: 0,
       RTS: [],
       E: E,
-      sleep: 0
+      sleep: Null,
+      wg_count: Null,
+      mutex: Null
     }
   }
 
   const env = cloneDeep(root)
-  env.OS.splice(1, env.OS.length - 2)
-  env.RTS.splice(1, env.RTS.length - 2)
-  env.sleep = 0
+//   env.OS.splice(1, env.OS.length - 2) // This has to be related to arity of thread
+//   env.RTS.splice(1, env.RTS.length - 2)
+  env.sleep = Null
+  env.wg_count = Null
+  env.mutex = Null
   return env
 }
 
@@ -958,8 +1133,23 @@ function run_next_instr(
   threadPool: ThreadPool,
   threadId: number
 ) {
-  if (Date.now() < (address_to_TS_value(env.sleep) as number)) {
+  if (!is_Null(env.sleep) && Date.now() < (address_to_TS_value(env.sleep) as number)) {
     return true
+  } else {
+    env.sleep = Null
+  }
+
+  if (!is_Null(env.wg_count) && heap_get_WaitGroup_counter(env.wg_count) > 0) {
+    return true
+  } else {
+    env.wg_count = Null
+  }
+
+  if (!is_Null(env.mutex) && heap_get_Mutex_State(env.mutex) != MUTEX_UNLOCKED_STATE) {
+    return true
+  } else {
+    heap_set_Mutex(env.mutex, MUTEX_LOCKED_STATE)
+    env.mutex = Null
   }
 
   if (instrs[env.PC].tag === 'DONE') {
@@ -971,7 +1161,6 @@ function run_next_instr(
     thread_instrs[env.PC].tag = 'CALL'
     thread_instrs.push({ tag: 'EXIT_SCOPE' }, { tag: 'DONE' })
     const newEnv = initialize_env(env)
-
     const threadItem: ThreadPoolItem = {
       instrs: thread_instrs,
       env: newEnv,
@@ -984,7 +1173,7 @@ function run_next_instr(
     return true
   }
   const instr = instrs[env.PC++]
-  // console.log(threadId, ':', instr)
+  console.log(threadId, ':', instr)
   microcode[instr.tag](instr)
 
   return true

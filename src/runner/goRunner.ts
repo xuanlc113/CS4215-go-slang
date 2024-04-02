@@ -36,7 +36,7 @@ import { run } from '../vm/go-vm/svml-machine-go'
 //   })
 // }
 
-const builtins = ['print', 'sleep', 'wgAdd', 'wgWait', 'wgDone', 'muLock', 'muUnlock']
+const builtins = ['print', 'sleep', 'Add', 'Wait', 'Done', 'Lock', 'Unlock']
 
 const constants = {}
 
@@ -181,10 +181,25 @@ const compile_comp = {
   nam:
     // store precomputed position information in LD instruction
     (comp: Identifier, ce: string[][]) => {
-      instrs[wc++] = {
-        tag: 'LD',
-        sym: comp.sym,
-        pos: compile_time_environment_position(ce, comp.sym)
+      // differentiate compilation of method invocation on an object
+      // lets just hard code for now to take any dots as one of the few types
+      // and an ordinary LD
+      if (comp.sym.includes('.')) {
+        // If it has a '.', assume it is one of the few methods we support
+        const [obj_sym, obj_method] = comp.sym.split('.')
+        instrs[wc++] = {
+          tag: 'LDM',
+          sym: obj_sym,
+          method_pos: compile_time_environment_position(ce, obj_method),
+          pos: compile_time_environment_position(ce, obj_sym)
+        }
+      } else {
+        // As per normal
+        instrs[wc++] = {
+          tag: 'LD',
+          sym: comp.sym,
+          pos: compile_time_environment_position(ce, comp.sym)
+        }
       }
     },
   unop: (comp: UnaryExpression, ce: string[][]) => {
@@ -250,7 +265,15 @@ const compile_comp = {
   },
   var: (comp: VarStatement, ce: string[][]) => {
     compile(comp.expr, ce)
+    // If of type WaitGroup or Mutex, need to do a ALLOCATE instr that
+    // creates memory for the WG/Mutex on the heap and push onto OS then ASSIGN will peek the OS
+    // and set the addr to the WG/Mutex in the environment
+    if (comp.sym.type === "WaitGroup" || comp.sym.type === "Mutex")
+    {
+      instrs[wc++] = { tag: 'ALLOCATE', type: comp.sym.type}
+    }
     instrs[wc++] = { tag: 'ASSIGN', pos: compile_time_environment_position(ce, comp.sym.sym) }
+
   },
   const: (comp: ConstStatement, ce: string[][]) => {
     compile(comp.expr, ce)
@@ -287,17 +310,51 @@ const compile_comp = {
   }
 }
 
-const testcode = `
-i := 0
-for i < 3 {
-  go func() {
-    print("hello")
-  }()
-  i = i + 1
+
+// const wg_testcode = `
+// var wg WaitGroup
+// wg.Add(3)
+
+// func test(x, time) {
+//   sleep(time)
+//   print(x)
+//   wg.Done()
+// }
+
+// go test("1", 10)
+
+// go test("2", 100)
+
+// go test("3", 50)
+
+// wg.Wait()
+// `
+
+const mutex_testcode = `
+var mut Mutex
+var wg WaitGroup
+var bal int = 100
+
+wg.Add(2)
+
+func test1(x, time) {
+  mut.Lock()
+  sleep(time)
+  if bal > 0 {
+    bal = bal - x
+  }
+  print(bal)
+  mut.Unlock()
+  wg.Done()
 }
+
+go test1(60, 200)
+go test1(70, 100)
+
+wg.Wait()
 `
 
-compile_program(parse(testcode))
+compile_program(parse(mutex_testcode))
 printInstr()
 
 function printInstr() {

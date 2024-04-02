@@ -30,10 +30,12 @@ export enum Tag {
 }
 
 export enum GoType {
-  Integer = 'Integer',
-  Null = 'Null',
-  String = 'String',
-  Boolean = 'Boolean'
+  Integer   = 'Integer',
+  Null      = 'Null',
+  String    = 'String',
+  Boolean   = 'Boolean',
+  WaitGroup = 'WaitGroup',
+  Mutex     = 'Mutex'
 }
 
 export enum GoAssignmentOperator {
