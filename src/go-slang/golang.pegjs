@@ -138,6 +138,7 @@ Keyword
   / BooleanToken
   / StringToken
   / GoroutineToken
+  / DeferToken
 
 Type
   = IntegerToken
@@ -209,6 +210,7 @@ StringToken     = "string"     !IdentifierPart
 GoroutineToken  = "go"         !IdentifierPart
 WaitGroupToken  = "WaitGroup"  !IdentifierPart
 MutexToken      = "Mutex"      !IdentifierPart
+DeferToken      = "defer"      !IdentifierPart
 
 __
   = (WhiteSpace / LineTerminatorSequence)*
@@ -423,6 +425,7 @@ Statement
   / GoroutineStatement
   / FunctionDeclaration
   / AnonymousFunction
+  / DeferStatement
 
 BlockStatement
   = "{" __ body:(StatementList __)? "}" {
@@ -571,6 +574,11 @@ ReturnStatement
     }
   / ReturnToken __ argument:Expression EOS {
       return { tag: "ret", expr: argument };
+    }
+
+DeferStatement
+  = DeferToken __ argument:Expression EOS {
+      return { tag: "def", expr: argument };
     }
 
 GoroutineStatement

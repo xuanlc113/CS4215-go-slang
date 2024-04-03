@@ -14,6 +14,7 @@ export type GoStatement =
   | GoroutineStatement
   | GoExpression
   | BlkSeqStatement
+  | DeferStatement
 
 export type GoLiteral = BooleanLiteral | IntLiteral | StringLiteral // | NullLiteral
 
@@ -30,12 +31,12 @@ export enum Tag {
 }
 
 export enum GoType {
-  Integer   = 'Integer',
-  Null      = 'Null',
-  String    = 'String',
-  Boolean   = 'Boolean',
+  Integer = 'Integer',
+  Null = 'Null',
+  String = 'String',
+  Boolean = 'Boolean',
   WaitGroup = 'WaitGroup',
-  Mutex     = 'Mutex'
+  Mutex = 'Mutex'
 }
 
 export enum GoAssignmentOperator {
@@ -181,6 +182,11 @@ export interface ReturnStatement {
 export interface GoroutineStatement {
   tag: 'goroutine'
   expr: CallExpression
+}
+
+export interface DeferStatement {
+  tag: 'def'
+  expr: GoExpression
 }
 
 export interface FunctionStatement {
