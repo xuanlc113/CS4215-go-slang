@@ -186,7 +186,7 @@ export interface GoroutineStatement {
 
 export interface DeferStatement {
   tag: 'def'
-  expr: GoExpression
+  expr: CallExpression
 }
 
 export interface FunctionStatement {

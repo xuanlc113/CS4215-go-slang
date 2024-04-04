@@ -170,24 +170,25 @@ function heap_get_4_bytes_at_offset(address: number, offset: number): number {
 }
 
 // Heap Pointer Tags
-const False_tag         = 0
-const True_tag          = 1
-const Number_tag        = 2
-const Null_tag          = 3
-const Unassigned_tag    = 4
+const False_tag = 0
+const True_tag = 1
+const Number_tag = 2
+const Null_tag = 3
+const Unassigned_tag = 4
 // const Undefined_tag      = 5
-const Blockframe_tag    = 6
-const Callframe_tag     = 7
-const Closure_tag       = 8
-const Frame_tag         = 9 // 0000 1001
-const Environment_tag   = 10 // 0000 1010
+const Blockframe_tag = 6
+const Callframe_tag = 7
+const Closure_tag = 8
+const Frame_tag = 9 // 0000 1001
+const Environment_tag = 10 // 0000 1010
 // const Pair_tag           = 11
-const Builtin_tag       = 12
+const Builtin_tag = 12
 // const Pointer_tag        = 13
 // const Goroutine_tag      = 14
-const String_tag        = 15
-const WaitGroup_tag     = 16
-const Mutex_tag         = 17
+const String_tag = 15
+const WaitGroup_tag = 16
+const Mutex_tag = 17
+const Defer_tag = 18
 
 // Manually Allocate Literal Values on the HEAP
 let False: number
@@ -234,7 +235,7 @@ const builtin_implementation = {
     return address
   },
   sleep: (env: ThreadEnv) => {
-    const val = address_to_TS_value(pop_OS(env.OS)) as number + Date.now()
+    const val = (address_to_TS_value(pop_OS(env.OS)) as number) + Date.now()
     env.sleep = heap_allocate_Number(val)
   },
   Add: (env: ThreadEnv) => {
@@ -243,14 +244,14 @@ const builtin_implementation = {
     const obj = pop_OS(env.OS) // Obj whose method is invoked
     env.OS.push(fun)
     if (!is_WaitGroup(obj)) {
-        // error handling
-        return
+      // error handling
+      return
     }
     const curr_wg_cnt = heap_get_WaitGroup_counter(obj)
     const new_wg_cnt = curr_wg_cnt + (address_to_TS_value(arg) as number)
     if (new_wg_cnt < 0) {
-        console.log("Throw Panic")
-        // not sure what to do here
+      console.log('Throw Panic')
+      // not sure what to do here
     }
     heap_set_WaitGroup_counter(obj, new_wg_cnt)
   },
@@ -259,13 +260,13 @@ const builtin_implementation = {
     const obj = pop_OS(env.OS) // Obj whose method is invoked
     env.OS.push(fun)
     if (!is_WaitGroup(obj)) {
-        // error handling
-        return
+      // error handling
+      return
     }
     // Block until counter is 0
     const wg_count = heap_get_WaitGroup_counter(obj)
     if (wg_count > 0) {
-        env.wg_count = obj
+      env.wg_count = obj
     }
   },
   Done: (env: ThreadEnv) => {
@@ -273,9 +274,9 @@ const builtin_implementation = {
     const obj = pop_OS(env.OS) // Obj whose method is invoked
     env.OS.push(fun)
     if (!is_WaitGroup(obj)) {
-        // error handling
-        console.log("obj is not a waitgroup")
-        return
+      // error handling
+      console.log('obj is not a waitgroup')
+      return
     }
     const curr_wg_cnt = heap_get_WaitGroup_counter(obj)
     heap_set_WaitGroup_counter(obj, curr_wg_cnt - 1)
@@ -285,38 +286,33 @@ const builtin_implementation = {
     const obj = pop_OS(env.OS)
     env.OS.push(fun)
     if (!is_Mutex(obj)) {
-        // error handling
-        console.log("obj is not a mutex")
-        return
+      // error handling
+      console.log('obj is not a mutex')
+      return
     }
     const mutex_state = heap_get_Mutex_State(obj)
     if (mutex_state == MUTEX_UNLOCKED_STATE) {
-        heap_set_Mutex(obj, MUTEX_LOCKED_STATE)
+      heap_set_Mutex(obj, MUTEX_LOCKED_STATE)
+    } else {
+      env.mutex = obj
     }
-    else
-    {
-        env.mutex = obj
-    }
-
   },
   Unlock: (env: ThreadEnv) => {
     const fun = pop_OS(env.OS)
     const obj = pop_OS(env.OS)
     env.OS.push(fun)
     if (!is_Mutex(obj)) {
-        // error handling
-        console.log("obj is not a mutex")
-        return
+      // error handling
+      console.log('obj is not a mutex')
+      return
     }
     const mutex_state = heap_get_Mutex_State(obj)
     if (mutex_state == MUTEX_LOCKED_STATE) {
-        heap_set_Mutex(obj, MUTEX_UNLOCKED_STATE)
+      heap_set_Mutex(obj, MUTEX_UNLOCKED_STATE)
+    } else {
+      throw Error('Unlock mutex called but mutex was not locked')
     }
-    else
-    {
-        throw Error("Unlock mutex called but mutex was not locked")
-    }
-  },  
+  }
 }
 
 const builtins: BuiltinMap = {}
@@ -536,7 +532,7 @@ function heap_allocate_String(s: string): number {
   for (i = 0; i < s.length; i++) {
     heap_set_byte_at_offset(str_address + 1, i, s.charCodeAt(i))
   }
-  
+
   return str_address
 }
 
@@ -562,15 +558,15 @@ function is_String(address: number): boolean {
 // followed by the number, one word
 // note: #children is 1
 function heap_allocate_WaitGroup(): number {
-    const wg_address = heap_allocate(WaitGroup_tag, 2)
-    heap_set(wg_address + 1, 0)
-    return wg_address
-  }
-  
+  const wg_address = heap_allocate(WaitGroup_tag, 2)
+  heap_set(wg_address + 1, 0)
+  return wg_address
+}
+
 function heap_get_WaitGroup_counter(address: number): number {
   return heap_get(address + 1)
 }
-  
+
 function heap_set_WaitGroup_counter(address: number, n: number): void {
   heap_set(address + 1, n)
 }
@@ -584,27 +580,36 @@ function is_WaitGroup(address: number): boolean {
 //  2 bytes #children, 1 byte unused]
 // followed by the number, one word
 // 0 is unlocked
-// 1 is 
+// 1 is
 
 const MUTEX_UNLOCKED_STATE = 0
 const MUTEX_LOCKED_STATE = 1
 
 function heap_allocate_Mutex(): number {
-    const mutex_address = heap_allocate(Mutex_tag, 2)
-    heap_set(mutex_address + 1, MUTEX_UNLOCKED_STATE)
-    return mutex_address
-  }
-  
-function heap_set_Mutex(address: number, state: number): void {
-    heap_set(address + 1, state)
+  const mutex_address = heap_allocate(Mutex_tag, 2)
+  heap_set(mutex_address + 1, MUTEX_UNLOCKED_STATE)
+  return mutex_address
 }
-  
+
+function heap_set_Mutex(address: number, state: number): void {
+  heap_set(address + 1, state)
+}
+
 function heap_get_Mutex_State(address: number): number {
   return heap_get(address + 1)
 }
 
 function is_Mutex(address: number): boolean {
   return heap_get_tag(address) === Mutex_tag
+}
+
+function heap_allocate_Defer(): number {
+  const def_address = heap_allocate(Defer_tag, 1)
+  return def_address
+}
+
+function is_Defer(address: number): boolean {
+  return heap_get_tag(address) === Defer_tag
 }
 
 // conversions between addresses and TS_value
@@ -647,6 +652,10 @@ function address_to_TS_value(x: number): Operand {
 
   if (is_Mutex(x)) {
     return '<mutex>'
+  }
+
+  if (is_Defer(x)) {
+    return '<defer>'
   }
   return undefined
 }
@@ -717,12 +726,54 @@ function pop_OS(OS: number[]): number {
   return res as number
 }
 
+function force_pop_OS(OS: number[]) {
+  OS.pop()
+}
+
 function pop_RTS(RTS: number[]): number {
   const res = RTS.pop()
   if (is_undefined(res)) {
     throw Error('Popped RTS and got undefined')
   }
   return res as number
+}
+
+function get_orig_return(OS: number[]): number {
+  if (OS.length == 0) {
+    throw Error('No return value in OS')
+  }
+
+  let pt = 0
+
+  let orig = peek(OS, pt) as number
+
+  while (pt < OS.length) {
+    while (!is_Defer(peek(OS, pt))) {
+      orig = peek(OS, pt) as number
+      pt++
+      if (pt >= OS.length) break
+    }
+    while (is_Defer(peek(OS, pt))) {
+      pt++
+    }
+
+    const arity = address_to_TS_value(peek(OS, pt)) as number
+    pt += arity + 2
+    if (pt < OS.length && !is_Defer(peek(OS, pt))) {
+      orig = peek(OS, pt)
+    }
+  }
+
+  return orig as number
+}
+
+function pop_to_defer(OS: number[]) {
+  for (let pt = 0; pt < OS.length; pt++) {
+    if (is_Defer(peek(OS, pt))) {
+      OS.splice(-pt)
+      return
+    }
+  }
 }
 
 function apply_binop(op: string, v2: number, v1: number): Operand {
@@ -922,10 +973,10 @@ function get_instr_pos(instr: Instruction): [number, number] {
 }
 
 function get_instr_method_pos(instr: Instruction): [number, number] {
-    if (is_undefined(instr.method_pos)) {
-        throw Error('Missing method pos in instruction: ' + instr.tag)
-      }
-      return instr.method_pos as [number, number]
+  if (is_undefined(instr.method_pos)) {
+    throw Error('Missing method pos in instruction: ' + instr.tag)
+  }
+  return instr.method_pos as [number, number]
 }
 
 function get_instr_num(instr: Instruction): number {
@@ -970,28 +1021,27 @@ function create_microcode(env: ThreadEnv) {
       push(env.OS, val)
     },
     LDM: instr => {
-        // This is the address to the object
-        const val = heap_get_Environment_value(env.E, get_instr_pos(instr))
-        if (is_Unassigned(val)) throw Error('Access of unassigned variable')
-        // error("access of unassigned variable")
-        push(env.OS, val)
+      // This is the address to the object
+      const val = heap_get_Environment_value(env.E, get_instr_pos(instr))
+      if (is_Unassigned(val)) throw Error('Access of unassigned variable')
+      // error("access of unassigned variable")
+      push(env.OS, val)
 
-        // Next one is address to the function
-        const method_val = heap_get_Environment_value(env.E, get_instr_method_pos(instr))
-        if (is_Unassigned(method_val)) throw Error('Access of unassigned variable')
-        // error("access of unassigned variable")
-        push(env.OS, method_val)
+      // Next one is address to the function
+      const method_val = heap_get_Environment_value(env.E, get_instr_method_pos(instr))
+      if (is_Unassigned(method_val)) throw Error('Access of unassigned variable')
+      // error("access of unassigned variable")
+      push(env.OS, method_val)
     },
     ALLOCATE: instr => {
-        if (instr.type == "WaitGroup") {
-            push(env.OS, heap_allocate_WaitGroup())
-        }
-        else if (instr.type == "Mutex") {
-            push(env.OS, heap_allocate_Mutex())
-        }
+      if (instr.type == 'WaitGroup') {
+        push(env.OS, heap_allocate_WaitGroup())
+      } else if (instr.type == 'Mutex') {
+        push(env.OS, heap_allocate_Mutex())
+      }
     },
     ASSIGN: instr => {
-        heap_set_Environment_value(env.E, get_instr_pos(instr), peek(env.OS, 0))
+      heap_set_Environment_value(env.E, get_instr_pos(instr), peek(env.OS, 0))
     },
     LDF: instr => {
       const arity = get_instr_arity(instr)
@@ -1043,6 +1093,45 @@ function create_microcode(env: ThreadEnv) {
       } else {
         env.PC--
       }
+
+      microcode['RUNDEFER']({ tag: 'RUNDEFER' })
+    },
+    DEFER: instr => {
+      const arity = get_instr_arity(instr)
+      push(env.OS, TS_value_to_address(arity))
+      push(env.OS, heap_allocate_Defer())
+      push(env.OS, heap_allocate_Defer()) // added twice to prevent removal by POP
+    },
+    RUNDEFER: instr => {
+      const orig = get_orig_return(env.OS)
+      pop_to_defer(env.OS)
+      while (is_Defer(peek(env.OS, 0))) {
+        while (is_Defer(peek(env.OS, 0))) {
+          pop_OS(env.OS)
+        }
+        const arity = address_to_TS_value(pop_OS(env.OS)) as number
+        const fun = peek(env.OS, arity)
+        if (is_Builtin(fun)) {
+          apply_builtin(heap_get_Builtin_id(fun), env)
+          force_pop_OS(env.OS) // ignore result
+          continue
+        }
+        const new_PC = heap_get_Closure_pc(fun)
+        const new_frame = heap_allocate_Frame(arity)
+        for (let i = arity - 1; i >= 0; i--) {
+          heap_set_child(new_frame, i, pop_OS(env.OS))
+        }
+        pop_OS(env.OS) // pop fun
+        push(env.RTS, heap_allocate_Callframe(env.E, env.PC))
+        env.E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun))
+        env.PC = new_PC
+      }
+
+      // remove previous defer origs
+      while (env.OS.length > 0) {
+        force_pop_OS(env.OS)
+      }
+      push(env.OS, orig)
     }
   }
 
@@ -1084,8 +1173,8 @@ export function initialize_env(root?: ThreadEnv): ThreadEnv {
   }
 
   const env = cloneDeep(root)
-//   env.OS.splice(1, env.OS.length - 2) // This has to be related to arity of thread
-//   env.RTS.splice(1, env.RTS.length - 2)
+  //   env.OS.splice(1, env.OS.length - 2) // This has to be related to arity of thread
+  //   env.RTS.splice(1, env.RTS.length - 2)
   env.sleep = Null
   env.wg_count = Null
   env.mutex = Null
@@ -1173,7 +1262,7 @@ function run_next_instr(
     return true
   }
   const instr = instrs[env.PC++]
-  console.log(threadId, ':', instr)
+  console.log(threadId, ':', instr, print_OS(env))
   microcode[instr.tag](instr)
 
   return true
@@ -1194,4 +1283,13 @@ const print_code = (instrs: Instruction[]) => {
         (instr.tag === 'LD' ? String(instr.sym) : '')
     )
   }
+}
+
+const print_OS = (env: ThreadEnv) => {
+  let s = ''
+  for (let i = 0; i < env.OS.length; i++) {
+    const v = peek(env.OS, i)
+    s += address_to_TS_value(v) + ' '
+  }
+  return s
 }

@@ -20,7 +20,8 @@ import {
   FunctionStatement,
   CallExpression,
   ReturnStatement,
-  GoroutineStatement
+  GoroutineStatement,
+  DeferStatement
 } from '../go-slang/types'
 import { run } from '../vm/go-vm/svml-machine-go'
 
@@ -268,12 +269,10 @@ const compile_comp = {
     // If of type WaitGroup or Mutex, need to do a ALLOCATE instr that
     // creates memory for the WG/Mutex on the heap and push onto OS then ASSIGN will peek the OS
     // and set the addr to the WG/Mutex in the environment
-    if (comp.sym.type === "WaitGroup" || comp.sym.type === "Mutex")
-    {
-      instrs[wc++] = { tag: 'ALLOCATE', type: comp.sym.type}
+    if (comp.sym.type === 'WaitGroup' || comp.sym.type === 'Mutex') {
+      instrs[wc++] = { tag: 'ALLOCATE', type: comp.sym.type }
     }
     instrs[wc++] = { tag: 'ASSIGN', pos: compile_time_environment_position(ce, comp.sym.sym) }
-
   },
   const: (comp: ConstStatement, ce: string[][]) => {
     compile(comp.expr, ce)
@@ -307,54 +306,78 @@ const compile_comp = {
       compile(arg, ce)
     }
     instrs[wc++] = { tag: 'START_THREAD', arity: comp.expr.args.length }
+  },
+  def: (comp: DeferStatement, ce: string[][]) => {
+    compile(comp.expr.fun, ce)
+    for (const arg of comp.expr.args) {
+      compile(arg, ce)
+    }
+    instrs[wc++] = { tag: 'DEFER', arity: comp.expr.args.length }
   }
 }
 
-
-// const wg_testcode = `
-// var wg WaitGroup
-// wg.Add(3)
-
-// func test(x, time) {
-//   sleep(time)
-//   print(x)
-//   wg.Done()
-// }
-
-// go test("1", 10)
-
-// go test("2", 100)
-
-// go test("3", 50)
-
-// wg.Wait()
-// `
-
-const mutex_testcode = `
-var mut Mutex
+const wg_testcode = `
 var wg WaitGroup
-var bal int = 100
 
-wg.Add(2)
 
-func test1(x, time) {
-  mut.Lock()
+func test(x, time) {
+  defer wg.Done()
   sleep(time)
-  if bal > 0 {
-    bal = bal - x
-  }
-  print(bal)
-  mut.Unlock()
-  wg.Done()
+  print(x)
 }
 
-go test1(60, 200)
-go test1(70, 100)
+wg.Add(3)
+
+go test("1", 10)
+
+go test("2", 100)
+
+go test("3", 50)
 
 wg.Wait()
 `
 
-compile_program(parse(mutex_testcode))
+// const mutex_testcode = `
+// var mut Mutex
+// var wg WaitGroup
+// var bal int = 100
+
+// wg.Add(2)
+
+// func test1(x, time) {
+//   defer wg.Done()
+//   mut.Lock()
+//   sleep(time)
+//   if bal > 0 {
+//     bal = bal - x
+//   }
+//   print(bal)
+//   mut.Unlock()
+// }
+
+// go test1(60, 200)
+// go test1(70, 100)
+
+// wg.Wait()
+// print("done")
+// `
+
+// const defer_testcode = `
+// func c(d) {
+//   print(d + 1)
+// }
+
+// func f(a, b) {
+//   defer c(a)
+//   defer c(b)
+//   return b
+// }
+// a := 1
+// a = f(3, 6)
+// print(a)
+// `
+
+compile_program(parse(wg_testcode))
 printInstr()
 
 function printInstr() {
