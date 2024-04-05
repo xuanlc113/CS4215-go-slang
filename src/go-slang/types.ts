@@ -15,6 +15,7 @@ export type GoStatement =
   | GoExpression
   | BlkSeqStatement
   | DeferStatement
+  | SendChStatement
 
 export type GoLiteral = BooleanLiteral | IntLiteral | StringLiteral // | NullLiteral
 
@@ -24,6 +25,7 @@ export type GoExpression =
   | UnaryExpression
   | BinaryExpression
   | LogicalExpression
+  | ReceiveChExpression
 
 export enum Tag {
   Lit = 'lit',
@@ -210,4 +212,15 @@ export interface BlockStatement {
 export interface SeqStatement {
   tag: 'seq'
   stmts: GoAction[]
+}
+
+export interface ReceiveChExpression {
+  tag: 'receiveCh'
+  sym: Identifier
+}
+
+export interface SendChStatement {
+  tag: 'sendCh'
+  sym: Identifier
+  expr: GoExpression
 }

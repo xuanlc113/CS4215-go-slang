@@ -189,6 +189,7 @@ const String_tag = 15
 const WaitGroup_tag = 16
 const Mutex_tag = 17
 const Defer_tag = 18
+const Number_Channel_tag = 19
 
 // Manually Allocate Literal Values on the HEAP
 let False: number
@@ -229,10 +230,14 @@ function allocate_literal_values(): void {
 }
 
 const builtin_implementation = {
-  print: (env: ThreadEnv) => {
-    const address = pop_OS(env.OS)
-    console.log(address_to_TS_value(address))
-    return address
+  print: (env: ThreadEnv, arity: number) => {
+    const toPrint = []
+    for (let i = 0; i < arity; i++) {
+      toPrint.push(address_to_TS_value(pop_OS(env.OS))?.toString())
+    }
+    const output = toPrint.reverse().join(' ')
+    console.log(output)
+    return output
   },
   sleep: (env: ThreadEnv) => {
     const val = (address_to_TS_value(pop_OS(env.OS)) as number) + Date.now()
@@ -312,6 +317,23 @@ const builtin_implementation = {
     } else {
       throw Error('Unlock mutex called but mutex was not locked')
     }
+  },
+  intchannel: (env: ThreadEnv, arity: number) => {
+    let size = 0
+    if (arity == 1) {
+      size = address_to_TS_value(pop_OS(env.OS)) as number
+    }
+    console.log('size', arity)
+    const address = heap_allocate_Number_Channel(size)
+
+    return address
+  },
+  stringchannel: (env: ThreadEnv, arity: number) => {
+    let size = 0
+    if (arity == 1) {
+      size = pop_OS(env.OS)
+    }
+    console.log('s', address_to_TS_value(size))
   }
 }
 
@@ -325,8 +347,8 @@ const builtin_array: BuiltinFn[] = []
   }
 }
 
-function apply_builtin(builtin_id: number, env: ThreadEnv) {
-  const result = builtin_array[builtin_id](env)
+function apply_builtin(builtin_id: number, env: ThreadEnv, arity: number) {
+  const result = builtin_array[builtin_id](env, arity)
   env.OS.pop() // pop fun
   push(env.OS, result)
 }
@@ -611,6 +633,74 @@ function heap_allocate_Defer(): number {
 function is_Defer(address: number): boolean {
   return heap_get_tag(address) === Defer_tag
 }
+
+// 2 for recording size and cap, + 1 for array space without buffer
+function heap_allocate_Number_Channel(size: number = 0): number {
+  const address = heap_allocate(Number_Channel_tag, size + 3)
+  heap_set_child(address, 0, heap_allocate_Number(0))
+  heap_set_child(address, 1, heap_allocate_Number(size + 1))
+  for (let i = 0; i < size + 1; i++) {
+    heap_set_child(address, i + 2, heap_allocate(Null_tag, 1))
+  }
+  return address
+}
+
+// function is_NumberChannel(address: number): boolean {
+//   return heap_get_tag(address) === Number_Channel_tag
+// }
+
+function can_receieve_from_Number_Channel(address: number): boolean {
+  const curSize = address_to_TS_value(heap_get_child(address, 0)) as number
+  return curSize > 0
+}
+
+function receive_from_Number_Channel(address: number): number {
+  const curSizeAddr = heap_get_child(address, 0)
+  const curSize = address_to_TS_value(curSizeAddr) as number
+
+  if (curSize == 0) {
+    throw Error('Cannot receive from empty channel')
+  }
+
+  const rec = heap_get_child(address, 2)
+  // iterate up to second last
+  for (let i = 2; i < curSize + 1; i++) {
+    heap_set_child(address, i, heap_get_child(address, i + 1))
+  }
+  heap_set_child(address, curSize + 1, heap_allocate(Null_tag, 1))
+  heap_set(curSizeAddr + 1, curSize - 1)
+
+  return rec
+}
+
+function can_send_to_Number_Channel(address: number): boolean {
+  const curSize = address_to_TS_value(heap_get_child(address, 0)) as number
+  const cap = address_to_TS_value(heap_get_child(address, 1)) as number
+  return curSize < cap
+}
+
+function send_to_Number_Channel(address: number, n: number) {
+  const curSizeAddr = heap_get_child(address, 0)
+  const curSize = address_to_TS_value(curSizeAddr) as number
+  const cap = address_to_TS_value(heap_get_child(address, 1)) as number
+
+  if (curSize == cap) {
+    throw Error('cannot send to full channel')
+  }
+
+  heap_set_child(address, curSize + 2, heap_allocate_Number(n))
+  heap_set(curSizeAddr + 1, curSize + 1)
+}
+
+// function print_numCh(address: number) {
+//   const curSize = address_to_TS_value(heap_get_child(address, 1)) as number
+//   const a = []
+//   for (let i = 0; i < curSize + 2; i++) {
+//     const item = heap_get_child(address, i)
+//     a.push(address_to_TS_value(item))
+//   }
+//   console.log(a)
+// }
 
 // conversions between addresses and TS_value
 //
@@ -1054,7 +1144,7 @@ function create_microcode(env: ThreadEnv) {
       const arity = get_instr_arity(instr)
       const fun = peek(env.OS, arity)
       if (is_Builtin(fun)) {
-        return apply_builtin(heap_get_Builtin_id(fun), env)
+        return apply_builtin(heap_get_Builtin_id(fun), env, arity)
       }
       const new_PC = heap_get_Closure_pc(fun)
       const new_frame = heap_allocate_Frame(arity)
@@ -1071,7 +1161,7 @@ function create_microcode(env: ThreadEnv) {
       const arity = get_instr_arity(instr)
       const fun = peek(env.OS, arity)
       if (is_Builtin(fun)) {
-        return apply_builtin(heap_get_Builtin_id(fun), env)
+        return apply_builtin(heap_get_Builtin_id(fun), env, arity)
       }
       const new_PC = heap_get_Closure_pc(fun)
       const new_frame = heap_allocate_Frame(arity)
@@ -1112,7 +1202,7 @@ function create_microcode(env: ThreadEnv) {
         const arity = address_to_TS_value(pop_OS(env.OS)) as number
         const fun = peek(env.OS, arity)
         if (is_Builtin(fun)) {
-          apply_builtin(heap_get_Builtin_id(fun), env)
+          apply_builtin(heap_get_Builtin_id(fun), env, arity)
           force_pop_OS(env.OS) // ignore result
           continue
         }
@@ -1132,6 +1222,28 @@ function create_microcode(env: ThreadEnv) {
         force_pop_OS(env.OS)
       }
       push(env.OS, orig)
+    },
+    SEND: instr => {
+      const chAddr = heap_get_Environment_value(env.E, get_instr_pos(instr))
+      if (can_send_to_Number_Channel(chAddr)) {
+        const val = address_to_TS_value(pop_OS(env.OS)) as number
+        send_to_Number_Channel(chAddr, val)
+        env.channelBlocked = false
+      } else {
+        env.PC = get_instr_addr(instr) // revert back to receive command for retry
+        env.channelBlocked = true
+      }
+    },
+    RECEIVE: instr => {
+      const chAddr = heap_get_Environment_value(env.E, get_instr_pos(instr))
+      if (can_receieve_from_Number_Channel(chAddr)) {
+        const val = receive_from_Number_Channel(chAddr)
+        push(env.OS, val)
+        env.channelBlocked = false
+      } else {
+        env.PC = get_instr_addr(instr) // revert back to receive command for retry
+        env.channelBlocked = true
+      }
     }
   }
 
@@ -1168,7 +1280,8 @@ export function initialize_env(root?: ThreadEnv): ThreadEnv {
       E: E,
       sleep: Null,
       wg_count: Null,
-      mutex: Null
+      mutex: Null,
+      channelBlocked: false
     }
   }
 
@@ -1178,6 +1291,7 @@ export function initialize_env(root?: ThreadEnv): ThreadEnv {
   env.sleep = Null
   env.wg_count = Null
   env.mutex = Null
+  env.channelBlocked = false
   return env
 }
 
@@ -1241,6 +1355,17 @@ function run_next_instr(
     env.mutex = Null
   }
 
+  if (env.channelBlocked) {
+    const instr = instrs[env.PC]
+    microcode[instr.tag](instr)
+    if (!env.channelBlocked) {
+      env.PC++
+    }
+    return true
+  } else {
+    env.channelBlocked = false
+  }
+
   if (instrs[env.PC].tag === 'DONE') {
     return false
   }
@@ -1261,6 +1386,7 @@ function run_next_instr(
 
     return true
   }
+
   const instr = instrs[env.PC++]
   console.log(threadId, ':', instr, print_OS(env))
   microcode[instr.tag](instr)

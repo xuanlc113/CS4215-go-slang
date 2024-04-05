@@ -103,6 +103,8 @@ InitType
           return "WaitGroup";
         case "Mutex":
           return "Mutex";
+        case "chan":
+          return "Channel"
         default:
           return "Null";
       } 
@@ -139,6 +141,7 @@ Keyword
   / StringToken
   / GoroutineToken
   / DeferToken
+  / ChannelToken
 
 Type
   = IntegerToken
@@ -146,6 +149,7 @@ Type
   / StringToken
   / WaitGroupToken
   / MutexToken
+  / ChannelToken
 
 Literal
   = NullLiteral
@@ -211,6 +215,7 @@ GoroutineToken  = "go"         !IdentifierPart
 WaitGroupToken  = "WaitGroup"  !IdentifierPart
 MutexToken      = "Mutex"      !IdentifierPart
 DeferToken      = "defer"      !IdentifierPart
+ChannelToken    = "chan"       !IdentifierPart
 
 __
   = (WhiteSpace / LineTerminatorSequence)*
@@ -230,7 +235,7 @@ PrimaryExpression
   / ArrayLiteral
 
 ArrayLiteral
-  = "[" __ elements:ElementList __ "]" {
+  = "[]" Type "{" __ elements:ElementList __ "]" {
       return {
         type: "arr",
         elements: elements
@@ -274,8 +279,22 @@ ArgumentList
       return buildList(head, tail, 3);
     }
 
+ChannelInitExpression
+  = "make(" __ ChannelToken __ type:Type size:( __ "," __ AssignmentExpression)? ")" {
+    return {
+      tag: "app",
+      fun: {
+        "tag": "nam",
+        "sym": `${type[0]}channel`,
+        "type": "Null"
+      },
+      args: extractOptional(size, 3) == null ? [] : [extractOptional(size, 3)]
+    }
+  }
+
 LeftHandSideExpression
-  = CallExpression
+  = ChannelInitExpression 
+  / CallExpression
   / MemberExpression
   / PrimaryExpression
 
@@ -371,6 +390,11 @@ LogicalOROperator
 ConditionalExpression
   = LogicalORExpression
 
+ReceiveChannelExpression
+ = "<-" __ id:Identifier {
+  return { tag: "receiveCh", sym: id}
+ }
+
 AssignmentExpression
   = left:LeftHandSideExpression __
     "=" !"=" __
@@ -395,6 +419,7 @@ AssignmentExpression
       };
     }
   / ConditionalExpression
+  / ReceiveChannelExpression
 
 AssignmentOperator
   = "*="
@@ -411,7 +436,8 @@ Expression
 // ----- A.4 Statements -----
 
 Statement
-  = BlockStatement
+  = SendChannelStatement
+  / BlockStatement
   / VariableStatement
   / ConstantStatement
   / EmptyStatement
@@ -591,6 +617,10 @@ GoroutineStatement
       return expr
     }
 
+SendChannelStatement
+  = id:Identifier __ "<-" __ expr: Expression {
+    return { tag: "sendCh", sym: id, expr: expr }
+  }
 // ----- A.5 Functions and Programs -----
 
 FunctionDeclaration

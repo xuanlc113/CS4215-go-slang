@@ -16,7 +16,7 @@ export interface Instruction {
 
   method_pos?: [number, number] // For LDM
 
-  type?: string   // For ALLOCATE
+  type?: string // For ALLOCATE
 
   num?: number
 }
@@ -26,9 +26,10 @@ export interface ThreadEnv {
   PC: number
   RTS: number[]
   E: number
-  sleep: number     // addr to sleep arg
-  wg_count: number  // addr to waitgroup
-  mutex: number     // addr to mutex
+  sleep: number // addr to sleep arg
+  wg_count: number // addr to waitgroup
+  mutex: number // addr to mutex
+  channelBlocked: boolean
 }
 
 export type ThreadPool = ThreadPoolItem[]
@@ -53,4 +54,4 @@ export interface BuiltinTag {
   arity: number
 }
 
-export type BuiltinFn = (env: ThreadEnv) => any
+export type BuiltinFn = (env: ThreadEnv, arity?: number) => any

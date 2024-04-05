@@ -21,7 +21,9 @@ import {
   CallExpression,
   ReturnStatement,
   GoroutineStatement,
-  DeferStatement
+  DeferStatement,
+  SendChStatement,
+  ReceiveChExpression
 } from '../go-slang/types'
 import { run } from '../vm/go-vm/svml-machine-go'
 
@@ -37,7 +39,17 @@ import { run } from '../vm/go-vm/svml-machine-go'
 //   })
 // }
 
-const builtins = ['print', 'sleep', 'Add', 'Wait', 'Done', 'Lock', 'Unlock']
+const builtins = [
+  'print',
+  'sleep',
+  'Add',
+  'Wait',
+  'Done',
+  'Lock',
+  'Unlock',
+  'intchannel',
+  'stringchannel'
+]
 
 const constants = {}
 
@@ -313,29 +325,43 @@ const compile_comp = {
       compile(arg, ce)
     }
     instrs[wc++] = { tag: 'DEFER', arity: comp.expr.args.length }
+  },
+  sendCh: (comp: SendChStatement, ce: string[][]) => {
+    compile(comp.expr, ce)
+    instrs[wc++] = {
+      tag: 'SEND',
+      pos: compile_time_environment_position(ce, comp.sym.sym),
+      addr: wc - 1 // point address to self
+    }
+  },
+  receiveCh: (comp: ReceiveChExpression, ce: string[][]) => {
+    instrs[wc++] = {
+      tag: 'RECEIVE',
+      pos: compile_time_environment_position(ce, comp.sym.sym),
+      addr: wc - 1
+    }
   }
 }
 
-const wg_testcode = `
-var wg WaitGroup
+// const wg_testcode = `
+// var wg WaitGroup
 
+// func test(x, time) {
+//   defer wg.Done()
+//   sleep(time)
+//   print(x)
+// }
 
-func test(x, time) {
-  defer wg.Done()
-  sleep(time)
-  print(x)
-}
+// wg.Add(3)
 
-wg.Add(3)
+// go test("1", 10)
 
-go test("1", 10)
+// go test("2", 100)
 
-go test("2", 100)
+// go test("3", 50)
 
-go test("3", 50)
-
-wg.Wait()
-`
+// wg.Wait()
+// `
 
 // const mutex_testcode = `
 // var mut Mutex
@@ -377,7 +403,21 @@ wg.Wait()
 // print(a)
 // `
 
-compile_program(parse(wg_testcode))
+const channel_testcode = `
+func f() {
+  print("start")
+  print(<- a)
+}
+
+a := make(chan int)
+go f()
+sleep(10)
+print("sleep done")
+a <- 234
+sleep(10)
+`
+
+compile_program(parse(channel_testcode))
 printInstr()
 
 function printInstr() {
