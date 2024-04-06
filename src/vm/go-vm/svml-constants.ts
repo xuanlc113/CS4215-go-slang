@@ -30,6 +30,7 @@ export interface ThreadEnv {
   wg_count: number // addr to waitgroup
   mutex: number // addr to mutex
   channelBlocked: boolean
+  waitingToReceive: number
 }
 
 export type ThreadPool = ThreadPoolItem[]
@@ -41,7 +42,7 @@ export interface ThreadPoolItem {
 }
 
 export interface Microcode {
-  [key: string]: (instr: Instruction) => void
+  [key: string]: (instr: Instruction, threadpool?: ThreadPool) => void
 }
 
 export interface BuiltinMap {

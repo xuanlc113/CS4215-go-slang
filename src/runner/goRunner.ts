@@ -403,17 +403,18 @@ const compile_comp = {
 // print(a)
 // `
 
+// use a := make(chan int) to need receiver ready before able to send
 const channel_testcode = `
 func f() {
-  print("start")
+  sleep(5)
+  print("sleep done")
   print(<- a)
 }
 
-a := make(chan int)
+a := make(chan int, 1)
 go f()
-sleep(10)
-print("sleep done")
 a <- 234
+print("sent")
 sleep(10)
 `
 

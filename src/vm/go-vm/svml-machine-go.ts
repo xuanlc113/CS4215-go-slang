@@ -189,7 +189,7 @@ const String_tag = 15
 const WaitGroup_tag = 16
 const Mutex_tag = 17
 const Defer_tag = 18
-const Number_Channel_tag = 19
+const Channel_tag = 19
 
 // Manually Allocate Literal Values on the HEAP
 let False: number
@@ -323,17 +323,18 @@ const builtin_implementation = {
     if (arity == 1) {
       size = address_to_TS_value(pop_OS(env.OS)) as number
     }
-    console.log('size', arity)
-    const address = heap_allocate_Number_Channel(size)
+    const address = heap_allocate_Channel(size)
 
     return address
   },
   stringchannel: (env: ThreadEnv, arity: number) => {
     let size = 0
     if (arity == 1) {
-      size = pop_OS(env.OS)
+      size = address_to_TS_value(pop_OS(env.OS)) as number
     }
-    console.log('s', address_to_TS_value(size))
+    const address = heap_allocate_Channel(size)
+
+    return address
   }
 }
 
@@ -635,8 +636,8 @@ function is_Defer(address: number): boolean {
 }
 
 // 2 for recording size and cap, + 1 for array space without buffer
-function heap_allocate_Number_Channel(size: number = 0): number {
-  const address = heap_allocate(Number_Channel_tag, size + 3)
+function heap_allocate_Channel(size: number = 0): number {
+  const address = heap_allocate(Channel_tag, size + 3)
   heap_set_child(address, 0, heap_allocate_Number(0))
   heap_set_child(address, 1, heap_allocate_Number(size + 1))
   for (let i = 0; i < size + 1; i++) {
@@ -645,16 +646,12 @@ function heap_allocate_Number_Channel(size: number = 0): number {
   return address
 }
 
-// function is_NumberChannel(address: number): boolean {
-//   return heap_get_tag(address) === Number_Channel_tag
-// }
-
-function can_receieve_from_Number_Channel(address: number): boolean {
+function can_receieve_from_Channel(address: number): boolean {
   const curSize = address_to_TS_value(heap_get_child(address, 0)) as number
   return curSize > 0
 }
 
-function receive_from_Number_Channel(address: number): number {
+function receive_from_Channel(address: number): number {
   const curSizeAddr = heap_get_child(address, 0)
   const curSize = address_to_TS_value(curSizeAddr) as number
 
@@ -673,13 +670,19 @@ function receive_from_Number_Channel(address: number): number {
   return rec
 }
 
-function can_send_to_Number_Channel(address: number): boolean {
+function can_send_to_Channel(address: number, threadpool: ThreadPool): boolean {
   const curSize = address_to_TS_value(heap_get_child(address, 0)) as number
   const cap = address_to_TS_value(heap_get_child(address, 1)) as number
-  return curSize < cap
+  if (curSize == cap) {
+    return false
+  } else if (curSize < cap && cap > 1) {
+    return true
+  } else {
+    return threadpool.some(thread => thread.env.waitingToReceive == address)
+  }
 }
 
-function send_to_Number_Channel(address: number, n: number) {
+function send_to_Channel(address: number, val: number) {
   const curSizeAddr = heap_get_child(address, 0)
   const curSize = address_to_TS_value(curSizeAddr) as number
   const cap = address_to_TS_value(heap_get_child(address, 1)) as number
@@ -688,7 +691,15 @@ function send_to_Number_Channel(address: number, n: number) {
     throw Error('cannot send to full channel')
   }
 
-  heap_set_child(address, curSize + 2, heap_allocate_Number(n))
+  if (is_Number(val)) {
+    const rawVal = address_to_TS_value(val) as number
+    heap_set_child(address, curSize + 2, heap_allocate_Number(rawVal))
+  } else if (is_String(val)) {
+    const rawVal = address_to_TS_value(val) as string
+    heap_set_child(address, curSize + 2, heap_allocate_String(rawVal))
+  } else {
+    throw Error('unsupported channel item type')
+  }
   heap_set(curSizeAddr + 1, curSize + 1)
 }
 
@@ -1223,11 +1234,11 @@ function create_microcode(env: ThreadEnv) {
       }
       push(env.OS, orig)
     },
-    SEND: instr => {
+    SEND: (instr, threadpool) => {
       const chAddr = heap_get_Environment_value(env.E, get_instr_pos(instr))
-      if (can_send_to_Number_Channel(chAddr)) {
-        const val = address_to_TS_value(pop_OS(env.OS)) as number
-        send_to_Number_Channel(chAddr, val)
+      if (can_send_to_Channel(chAddr, threadpool as ThreadPool)) {
+        const val = pop_OS(env.OS)
+        send_to_Channel(chAddr, val)
         env.channelBlocked = false
       } else {
         env.PC = get_instr_addr(instr) // revert back to receive command for retry
@@ -1236,13 +1247,15 @@ function create_microcode(env: ThreadEnv) {
     },
     RECEIVE: instr => {
       const chAddr = heap_get_Environment_value(env.E, get_instr_pos(instr))
-      if (can_receieve_from_Number_Channel(chAddr)) {
-        const val = receive_from_Number_Channel(chAddr)
+      if (can_receieve_from_Channel(chAddr)) {
+        const val = receive_from_Channel(chAddr)
         push(env.OS, val)
         env.channelBlocked = false
+        env.waitingToReceive = Null
       } else {
         env.PC = get_instr_addr(instr) // revert back to receive command for retry
         env.channelBlocked = true
+        env.waitingToReceive = chAddr
       }
     }
   }
@@ -1281,7 +1294,8 @@ export function initialize_env(root?: ThreadEnv): ThreadEnv {
       sleep: Null,
       wg_count: Null,
       mutex: Null,
-      channelBlocked: false
+      channelBlocked: false,
+      waitingToReceive: Null
     }
   }
 
@@ -1292,6 +1306,8 @@ export function initialize_env(root?: ThreadEnv): ThreadEnv {
   env.wg_count = Null
   env.mutex = Null
   env.channelBlocked = false
+  env.waitingToReceive = Null
+
   return env
 }
 
@@ -1357,7 +1373,7 @@ function run_next_instr(
 
   if (env.channelBlocked) {
     const instr = instrs[env.PC]
-    microcode[instr.tag](instr)
+    microcode[instr.tag](instr, threadPool)
     if (!env.channelBlocked) {
       env.PC++
     }
@@ -1389,7 +1405,7 @@ function run_next_instr(
 
   const instr = instrs[env.PC++]
   console.log(threadId, ':', instr, print_OS(env))
-  microcode[instr.tag](instr)
+  microcode[instr.tag](instr, threadPool)
 
   return true
 }
