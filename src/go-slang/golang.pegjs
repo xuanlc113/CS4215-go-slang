@@ -300,14 +300,23 @@ LeftHandSideExpression
 
 PostfixExpression
   = argument:LeftHandSideExpression _ operator:PostfixOperator {
+    let binopSym = "+";
+    if (operator == "--") {
+      binopSym = "-"
+    }
       return {
         tag: "assmt",
-        op: operator,
+        op: "=",
         sym: argument,
         expr: {
-          "tag": "lit",
-          "type": "Integer",
-          "val": 1
+          tag: "binop",
+          sym: binopSym,
+          first: argument,
+          second: {
+            "tag": "lit",
+            "type": "Integer",
+            "val": 1
+          }
         }
       };
     }
@@ -413,9 +422,14 @@ AssignmentExpression
     {
       return {
         tag: "assmt",
-        op: operator,
+        op: "=",
         sym: left,
-        expr: right
+        expr: {
+          tag: "binop",
+          sym: operator.substring(0, 1),
+          first: left,
+          second: right
+        }
       };
     }
   / ConditionalExpression
