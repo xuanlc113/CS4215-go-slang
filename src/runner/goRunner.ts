@@ -23,7 +23,8 @@ import {
   GoroutineStatement,
   DeferStatement,
   SendChStatement,
-  ReceiveChExpression
+  ReceiveChExpression,
+  ForStatement
 } from '../go-slang/types'
 import { run } from '../vm/go-vm/svml-machine-go'
 
@@ -83,6 +84,8 @@ function scan_for_locals(comp: GoAction): string[] {
     ? comp.stmts.reduce((acc: string[], x) => acc.concat(scan_for_locals(x)), [])
     : comp.tag == 'var' || comp.tag == 'const' || comp.tag == 'func'
     ? [comp.sym.sym]
+    : comp.tag == 'for'
+    ? [comp.init.sym.sym]
     : []
 }
 
@@ -91,7 +94,7 @@ function extract_params(params: Identifier[]): string[] {
 }
 
 function has_locals(comp: GoAction[]): boolean {
-  const tags: string[] = ['var', 'const', 'func']
+  const tags: string[] = ['var', 'const', 'func', 'for']
   return comp.some(c => tags.includes(c.tag))
 }
 
@@ -248,6 +251,21 @@ const compile_comp = {
     instrs[wc++] = jump_on_false_instruction
     compile(comp.body, ce)
     instrs[wc++] = { tag: 'POP' }
+    instrs[wc++] = { tag: 'GOTO', addr: loop_start }
+    jump_on_false_instruction.addr = wc
+    instrs[wc++] = { tag: 'LDC', val: undefined }
+  },
+  for: (comp: ForStatement, ce: string[][]) => {
+    compile(comp.init, ce)
+    instrs[wc++] = { tag: 'POP' }
+    const loop_start = wc
+    instrs[wc++] = { tag: 'POP' }
+    compile(comp.pred, ce)
+    const jump_on_false_instruction = { tag: 'JOF', addr: 0 }
+    instrs[wc++] = jump_on_false_instruction
+    compile(comp.body, ce)
+    instrs[wc++] = { tag: 'POP' }
+    compile(comp.update, ce)
     instrs[wc++] = { tag: 'GOTO', addr: loop_start }
     jump_on_false_instruction.addr = wc
     instrs[wc++] = { tag: 'LDC', val: undefined }
@@ -417,6 +435,12 @@ a <- 234
 print("sent")
 sleep(10)
 `
+
+// const loop_testcode = `
+// for i := 0; i < 3; i++{
+//   print(i)
+// }
+// `
 
 compile_program(parse(channel_testcode))
 printInstr()

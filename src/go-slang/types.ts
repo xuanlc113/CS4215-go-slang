@@ -7,6 +7,7 @@ export type GoStatement =
   | ConstStatement
   | CondStatement
   | WhileStatement
+  | ForStatement
   | ContinueStatement
   | BreakStatement
   | ReturnStatement
@@ -164,6 +165,14 @@ export interface WhileStatement {
   tag: 'while'
   pred: GoExpression
   body: BlockStatement
+}
+
+export interface ForStatement {
+  tag: 'for'
+  init: VarStatement
+  pred: GoExpression
+  body: BlockStatement
+  update: AssignmentExpression
 }
 
 export interface ContinueStatement {

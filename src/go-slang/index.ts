@@ -40,11 +40,10 @@ export function parse(code: string): BlkSeqStatement {
 // var Ab = f(a)
 // `
 
-const code = `
-a := 1
-a = a + 1
-a += 1
-a++
-`
+// const code = `
+// for i := 0; i < 3; i++ {
+//   print("hi")
+// }
+// `
 
-console.log(JSON.stringify(parse(code).body, null, 2))
+// console.log(JSON.stringify(parse(code).body, null, 2))

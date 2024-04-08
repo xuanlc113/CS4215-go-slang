@@ -590,7 +590,7 @@ ForStatement
   { return { tag: "while", pred: test, body: body }; }
   / ForToken __ init:VariableStatement __ ";" __ test:Expression __ ";" __ update:AssignmentExpression __
   body:Statement
-  {return {tag:"for", init: init, pred: test, body: body, update: update} }
+  { return { tag:"for", init: init, pred: test, body: body, update: update } }
 
 ContinueStatement
   = ContinueToken EOS {
