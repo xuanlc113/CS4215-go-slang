@@ -10,6 +10,9 @@ export interface Instruction {
 
   addr?: number // For JOF, GOTO, LDF
 
+  start_addr?: number // For CATCH, BREAK, CONTINUE
+  end_addr?: number   // For CATCH, BREAK, CONTINUE
+
   arity?: number // For CALL, TAIL_CALL
 
   pos?: [number, number] // For nam

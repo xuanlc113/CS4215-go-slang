@@ -1066,6 +1066,20 @@ function get_instr_addr(instr: Instruction): number {
   return instr.addr as number
 }
 
+function get_loop_start_addr(instr: Instruction): number {
+  if (is_undefined(instr.start_addr)) {
+    throw Error('Missing addr in instruction: ' + instr.tag)
+  }
+  return instr.start_addr as number
+}
+
+function get_loop_end_addr(instr: Instruction): number {
+  if (is_undefined(instr.end_addr)) {
+    throw Error('Missing addr in instruction: ' + instr.tag)
+  }
+  return instr.end_addr as number
+}
+
 function get_instr_pos(instr: Instruction): [number, number] {
   if (is_undefined(instr.pos)) {
     throw Error('Missing pos in instruction: ' + instr.tag)
@@ -1257,7 +1271,8 @@ function create_microcode(env: ThreadEnv) {
         env.channelBlocked = true
         env.waitingToReceive = chAddr
       }
-    }
+    },
+    CATCH: _ => {} // Do nothing if encountered naturally
   }
 
   return microcode
@@ -1403,6 +1418,38 @@ function run_next_instr(
     return true
   }
 
+  if (instrs[env.PC].tag === 'BREAK' || instrs[env.PC].tag === 'CONTINUE') {
+    const og_tag = instrs[env.PC].tag
+
+    let enter_scope_count = 0
+    while (instrs[env.PC].tag != 'CATCH') {
+      env.PC++
+      if (env.PC >= instrs.length) {
+        // Throw error, break or continue encountered but no catch block exist
+        throw Error( instrs[env.PC].tag + " encountered outside of for/while loop")
+      }
+      if (instrs[env.PC].tag === 'ENTER_SCOPE') {
+        enter_scope_count++
+      }
+      if (instrs[env.PC].tag === 'EXIT_SCOPE') {
+        if (enter_scope_count === 0) {
+          // the scope was entered before the break/continue is encountered and has to be executed
+          const instr = instrs[env.PC++]
+          microcode[instr.tag](instr, threadPool)
+        } else {
+          enter_scope_count--
+        }
+      }
+    }
+
+    // Found the catch block
+    if (og_tag === 'BREAK') {
+      env.PC = get_loop_end_addr(instrs[env.PC])
+    } else if (og_tag === 'CONTINUE') {
+      env.PC = get_loop_start_addr(instrs[env.PC])
+    }
+  }
+
   const instr = instrs[env.PC++]
   console.log(threadId, ':', instr, print_OS(env))
   microcode[instr.tag](instr, threadPool)
@@ -1419,7 +1466,7 @@ const print_code = (instrs: Instruction[]) => {
         ': ' +
         instr.tag +
         ' ' +
-        (instr.tag === 'GOTO' ? String(instr.addr) : '') +
+        (instr.tag === 'GOTO' || instr.tag === 'JOF' ? String(instr.addr) : '') +
         (instr.tag === 'LDC' ? String(instr.val) : '') +
         (instr.tag === 'ASSIGN' ? String(instr.sym) : '') +
         (instr.tag === 'LD' ? String(instr.sym) : '')

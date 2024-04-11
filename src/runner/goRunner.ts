@@ -24,10 +24,11 @@ import {
   DeferStatement,
   SendChStatement,
   ReceiveChExpression,
-  ForStatement
+  ForStatement,
+  BreakStatement,
+  ContinueStatement
 } from '../go-slang/types'
 import { run } from '../vm/go-vm/svml-machine-go'
-
 // export async function goRunner(
 //   code: string,
 //   context: Context,
@@ -252,6 +253,10 @@ const compile_comp = {
     compile(comp.body, ce)
     instrs[wc++] = { tag: 'POP' }
     instrs[wc++] = { tag: 'GOTO', addr: loop_start }
+    const catch_instruction = { tag: 'CATCH', start_addr: loop_start, end_addr: 0 }
+    instrs[wc++] = catch_instruction
+    catch_instruction.end_addr = wc
+
     jump_on_false_instruction.addr = wc
     instrs[wc++] = { tag: 'LDC', val: undefined }
   },
@@ -265,9 +270,14 @@ const compile_comp = {
     instrs[wc++] = jump_on_false_instruction
     compile(comp.body, ce)
     instrs[wc++] = { tag: 'POP' }
+
+    const catch_instruction = { tag: 'CATCH', start_addr: 0, end_addr: 0 }
+    instrs[wc++] = catch_instruction
+    catch_instruction.start_addr = wc // Have to do the update part
     compile(comp.update, ce)
     instrs[wc++] = { tag: 'GOTO', addr: loop_start }
     jump_on_false_instruction.addr = wc
+    catch_instruction.end_addr = wc
     instrs[wc++] = { tag: 'LDC', val: undefined }
   },
   app: (comp: CallExpression, ce: string[][]) => {
@@ -358,6 +368,16 @@ const compile_comp = {
       pos: compile_time_environment_position(ce, comp.sym.sym),
       addr: wc - 1
     }
+  },
+  break: (comp: BreakStatement, ce: string[][]) => {
+    instrs[wc++] = {
+      tag: 'BREAK'
+    }
+  },
+  continue: (comp: ContinueStatement, ce: string[][]) => {
+    instrs[wc++] = {
+      tag: 'CONTINUE'
+    }
   }
 }
 
@@ -422,32 +442,37 @@ const compile_comp = {
 // `
 
 // use a := make(chan int) to need receiver ready before able to send
-const channel_testcode = `
-func f() {
-  sleep(5)
-  print("sleep done")
-  print(<- a)
-}
-
-a := make(chan int, 1)
-go f()
-a <- 234
-print("sent")
-sleep(10)
-`
-
-// const loop_testcode = `
-// for i := 0; i < 3; i++{
-//   print(i)
+// const channel_testcode = `
+// func f() {
+//   sleep(5)
+//   print("sleep done")
+//   print(<- a)
 // }
-// `
 
-compile_program(parse(channel_testcode))
+// a := make(chan int, 1)
+// go f()
+// a <- 234
+// print("sent")
+// sleep(10)
+//`
+
+const loop_testcode = `
+for i := 0; i < 5; i++{
+  if i == 3 {
+    continue;
+  } else {
+    print(i);
+  }
+}
+`
+console.log(JSON.stringify(parse(loop_testcode)))
+
+compile_program(parse(loop_testcode))
 printInstr()
 
 function printInstr() {
   // for (let i = 0; i < instrs.length; i++) {
   //   console.log(instrs[i])
   // }
-  console.log(run(1000, instrs))
+  console.log(run(5000, instrs))
 }
