@@ -8,7 +8,7 @@ const pegContent = fs.readFileSync(PEG_FILE, 'utf-8')
 
 const parser = peggy.generate(pegContent)
 
-export function parse(code: string): BlkSeqStatement {
+export function go_parse(code: string): BlkSeqStatement {
   const program: BlkSeqStatement = { tag: 'blkseq', body: parser.parse(code) }
   return program
 }

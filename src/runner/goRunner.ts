@@ -2,7 +2,7 @@
 // import { Context, RecursivePartial } from '../types'
 // import { run } from '../vm/go-vm/svml-machine-go'
 import { Instruction } from '../vm/go-vm/svml-constants'
-import { parse } from '../go-slang/index'
+import { go_parse } from '../go-slang/index'
 import {
   ConstStatement,
   GoAction,
@@ -170,11 +170,12 @@ function set_blk_seq(comp: GoAction): GoAction {
 //   instrs[wc] = { tag: 'DONE' }
 // }
 
-export function compile_program(program: GoAction) {
+export function compile_program(program: GoAction): Instruction[] {
   wc = 0
   instrs = []
   compile(program, global_compile_environment)
   instrs[wc] = { tag: 'DONE' }
+  return instrs
 }
 
 function compile(comp: GoAction, ce: string[][]) {
@@ -465,12 +466,12 @@ for i := 0; i < 5; i++{
   }
 }
 `
-console.log(JSON.stringify(parse(loop_testcode)))
+console.log(JSON.stringify(go_parse(loop_testcode)))
 
-compile_program(parse(loop_testcode))
-printInstr()
+const compiled_instrs = compile_program(go_parse(loop_testcode))
+printInstr(compiled_instrs)
 
-function printInstr() {
+function printInstr(instrs: Instruction[]) {
   // for (let i = 0; i < instrs.length; i++) {
   //   console.log(instrs[i])
   // }

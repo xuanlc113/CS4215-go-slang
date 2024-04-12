@@ -9,6 +9,7 @@ import { SchemeParser } from './scheme'
 import { SourceParser } from './source'
 import { SourceTypedParser } from './source/typed'
 import { AcornOptions, Parser } from './types'
+import { GoParser } from './go'
 
 export function parse<TOptions extends AcornOptions>(
   programStr: string,
@@ -33,6 +34,9 @@ export function parse<TOptions extends AcornOptions>(
       break
     case Chapter.FULL_TS:
       parser = new FullTSParser()
+      break
+    case Chapter.GO_1:
+      parser = new GoParser(context.chapter)
       break
     default:
       switch (context.variant) {

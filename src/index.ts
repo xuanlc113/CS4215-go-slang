@@ -41,6 +41,9 @@ import {
   resolvedErrorPromise,
   sourceFilesRunner
 } from './runner'
+import { compile_program } from './runner/goRunner'
+import { go_parse } from './go-slang'
+import { run } from './vm/go-vm/svml-machine-go'
 
 export interface IOptions {
   scheduler: 'preemptive' | 'async'
@@ -226,6 +229,15 @@ export async function runFilesInContext(
   if (code === undefined) {
     context.errors.push(new CannotFindModuleError(entrypointFilePath))
     return resolvedErrorPromise
+  }
+
+  if (context.chapter === Chapter.GO_1) {
+    const instrs = compile_program(go_parse(code))
+    return Promise.resolve({
+      status: 'finished',
+      context,
+      value: console.log(run(5000, instrs))
+    })
   }
 
   if (
