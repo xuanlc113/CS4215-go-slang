@@ -1,15 +1,14 @@
-import * as peggy from 'peggy'
-import * as fs from 'fs'
-import * as path from 'path'
+// import * as peggy from 'peggy'
+// import * as fs from 'fs'
+// import * as path from 'path'
 import { BlkSeqStatement } from './types'
-
-const PEG_FILE: string = path.join(path.resolve(__dirname, '.'), 'golang.pegjs')
-const pegContent = fs.readFileSync(PEG_FILE, 'utf-8')
-
-const parser = peggy.generate(pegContent)
+import { parse } from "./parser"
+// const PEG_FILE: string = path.join(path.resolve(__dirname, '.'), 'golang.pegjs')
+// const pegContent = fs.readFileSync(PEG_FILE, 'utf-8')
+// const parser = peggy.generate(pegContentString)
 
 export function go_parse(code: string): BlkSeqStatement {
-  const program: BlkSeqStatement = { tag: 'blkseq', body: parser.parse(code) }
+  const program: BlkSeqStatement = { tag: 'blkseq', body: parse(code) }
   return program
 }
 

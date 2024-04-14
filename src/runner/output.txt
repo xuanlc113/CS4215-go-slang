@@ -1,0 +1,135 @@
+{"tag":"blkseq","body":[{"tag":"for","init":{"tag":"var","sym":{"tag":"nam","sym":"i","type":"Null"},"expr":{"tag":"lit","type":"Integer","val":0}},"pred":{"tag":"binop","sym":"<","first":{"tag":"nam","sym":"i","type":"Null"},"second":{"tag":"lit","type":"Integer","val":5}},"body":{"tag":"blkseq","body":[{"tag":"cond","pred":{"tag":"binop","sym":"==","first":{"tag":"nam","sym":"i","type":"Null"},"second":{"tag":"lit","type":"Integer","val":3}},"cons":{"tag":"blkseq","body":[{"tag":"continue","label":null}]},"alt":{"tag":"blkseq","body":[{"tag":"app","fun":{"tag":"nam","sym":"print","type":"Null"},"args":[{"tag":"nam","sym":"i","type":"Null"}]}]}}]},"update":{"tag":"assmt","op":"=","sym":{"tag":"nam","sym":"i","type":"Null"},"expr":{"tag":"binop","sym":"+","first":{"tag":"nam","sym":"i","type":"Null"},"second":{"tag":"lit","type":"Integer","val":1}}}}]}
+ 0: ENTER_SCOPE 
+ 1: LDC 0
+ 2: ASSIGN undefined
+ 3: POP 
+ 4: POP 
+ 5: LD i
+ 6: LDC 5
+ 7: BINOP 
+ 8: JOF 25
+ 9: LD i
+ 10: LDC 3
+ 11: BINOP 
+ 12: JOF 15
+ 13: CONTINUE 
+ 14: GOTO 18
+ 15: LD print
+ 16: LD i
+ 17: CALL 
+ 18: POP 
+ 19: CATCH 
+ 20: LD i
+ 21: LDC 1
+ 22: BINOP 
+ 23: ASSIGN undefined
+ 24: GOTO 4
+ 25: LDC undefined
+ 26: EXIT_SCOPE 
+ 27: DONE 
+0 : { tag: 'ENTER_SCOPE', num: 1 } 
+0 : { tag: 'LDC', val: 0 } 
+0 : { tag: 'ASSIGN', pos: [ 2, 0 ] } 0 
+0 : { tag: 'POP' } 0 
+0 : { tag: 'POP' } 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 5 } 0 
+0 : { tag: 'BINOP', sym: '<' } 5 0 
+0 : { tag: 'JOF', addr: 25 } true 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 3 } 0 
+0 : { tag: 'BINOP', sym: '==' } 3 0 
+0 : { tag: 'JOF', addr: 15 } false 
+0 : { tag: 'LD', sym: 'print', pos: [ 0, 0 ] } 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } <builtin> 
+0 : { tag: 'CALL', arity: 1 } 0 <builtin> 
+0
+0 : { tag: 'POP' } false 
+0 : { tag: 'CATCH', start_addr: 20, end_addr: 25 } 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 1 } 0 
+0 : { tag: 'BINOP', sym: '+' } 1 0 
+0 : { tag: 'ASSIGN', pos: [ 2, 0 ] } 1 
+0 : { tag: 'GOTO', addr: 4 } 1 
+0 : { tag: 'POP' } 1 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 5 } 1 
+0 : { tag: 'BINOP', sym: '<' } 5 1 
+0 : { tag: 'JOF', addr: 25 } true 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 3 } 1 
+0 : { tag: 'BINOP', sym: '==' } 3 1 
+0 : { tag: 'JOF', addr: 15 } false 
+0 : { tag: 'LD', sym: 'print', pos: [ 0, 0 ] } 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } <builtin> 
+0 : { tag: 'CALL', arity: 1 } 1 <builtin> 
+1
+0 : { tag: 'POP' } false 
+0 : { tag: 'CATCH', start_addr: 20, end_addr: 25 } 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 1 } 1 
+0 : { tag: 'BINOP', sym: '+' } 1 1 
+0 : { tag: 'ASSIGN', pos: [ 2, 0 ] } 2 
+0 : { tag: 'GOTO', addr: 4 } 2 
+0 : { tag: 'POP' } 2 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 5 } 2 
+0 : { tag: 'BINOP', sym: '<' } 5 2 
+0 : { tag: 'JOF', addr: 25 } true 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 3 } 2 
+0 : { tag: 'BINOP', sym: '==' } 3 2 
+0 : { tag: 'JOF', addr: 15 } false 
+0 : { tag: 'LD', sym: 'print', pos: [ 0, 0 ] } 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } <builtin> 
+0 : { tag: 'CALL', arity: 1 } 2 <builtin> 
+2
+0 : { tag: 'POP' } false 
+0 : { tag: 'CATCH', start_addr: 20, end_addr: 25 } 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 1 } 2 
+0 : { tag: 'BINOP', sym: '+' } 1 2 
+0 : { tag: 'ASSIGN', pos: [ 2, 0 ] } 3 
+0 : { tag: 'GOTO', addr: 4 } 3 
+0 : { tag: 'POP' } 3 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 5 } 3 
+0 : { tag: 'BINOP', sym: '<' } 5 3 
+0 : { tag: 'JOF', addr: 25 } true 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 3 } 3 
+0 : { tag: 'BINOP', sym: '==' } 3 3 
+0 : { tag: 'JOF', addr: 15 } true 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 1 } 3 
+0 : { tag: 'BINOP', sym: '+' } 1 3 
+0 : { tag: 'ASSIGN', pos: [ 2, 0 ] } 4 
+0 : { tag: 'GOTO', addr: 4 } 4 
+0 : { tag: 'POP' } 4 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 5 } 4 
+0 : { tag: 'BINOP', sym: '<' } 5 4 
+0 : { tag: 'JOF', addr: 25 } true 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 3 } 4 
+0 : { tag: 'BINOP', sym: '==' } 3 4 
+0 : { tag: 'JOF', addr: 15 } false 
+0 : { tag: 'LD', sym: 'print', pos: [ 0, 0 ] } 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } <builtin> 
+0 : { tag: 'CALL', arity: 1 } 4 <builtin> 
+4
+0 : { tag: 'POP' } false 
+0 : { tag: 'CATCH', start_addr: 20, end_addr: 25 } 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 1 } 4 
+0 : { tag: 'BINOP', sym: '+' } 1 4 
+0 : { tag: 'ASSIGN', pos: [ 2, 0 ] } 5 
+0 : { tag: 'GOTO', addr: 4 } 5 
+0 : { tag: 'POP' } 5 
+0 : { tag: 'LD', sym: 'i', pos: [ 2, 0 ] } 
+0 : { tag: 'LDC', val: 5 } 5 
+0 : { tag: 'BINOP', sym: '<' } 5 5 
+0 : { tag: 'JOF', addr: 25 } false 
+0 : { tag: 'LDC', val: undefined } 
+0 : { tag: 'EXIT_SCOPE' } false 
+false

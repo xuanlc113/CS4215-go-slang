@@ -2,7 +2,7 @@
 // import { Context, RecursivePartial } from '../types'
 // import { run } from '../vm/go-vm/svml-machine-go'
 import { Instruction } from '../vm/go-vm/svml-constants'
-import { go_parse } from '../go-slang/index'
+// import { go_parse } from '../go-slang/index'
 import {
   ConstStatement,
   GoAction,
@@ -28,7 +28,7 @@ import {
   BreakStatement,
   ContinueStatement
 } from '../go-slang/types'
-import { run } from '../vm/go-vm/svml-machine-go'
+// import { run } from '../vm/go-vm/svml-machine-go'
 // export async function goRunner(
 //   code: string,
 //   context: Context,
@@ -457,23 +457,23 @@ const compile_comp = {
 // sleep(10)
 //`
 
-const loop_testcode = `
-for i := 0; i < 5; i++{
-  if i == 3 {
-    continue;
-  } else {
-    print(i);
-  }
-}
-`
-console.log(JSON.stringify(go_parse(loop_testcode)))
+// const loop_testcode = `
+// for i := 0; i < 5; i++{
+//   if i == 3 {
+//     continue;
+//   } else {
+//     print(i);
+//   }
+// }
+// `
+// console.log(JSON.stringify(go_parse(loop_testcode)))
 
-const compiled_instrs = compile_program(go_parse(loop_testcode))
-printInstr(compiled_instrs)
+// const compiled_instrs = compile_program(go_parse(loop_testcode))
+// printInstr(compiled_instrs)
 
-function printInstr(instrs: Instruction[]) {
-  // for (let i = 0; i < instrs.length; i++) {
-  //   console.log(instrs[i])
-  // }
-  console.log(run(5000, instrs))
-}
+// function printInstr(instrs: Instruction[]) {
+//   // for (let i = 0; i < instrs.length; i++) {
+//   //   console.log(instrs[i])
+//   // }
+//   console.log(run(5000, instrs))
+// }

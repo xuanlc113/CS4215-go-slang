@@ -17,6 +17,7 @@ import {
   BuiltinTag,
   BuiltinFn
 } from './svml-constants'
+import { Context } from '../..'
 
 // Global Variables for HEAP
 let HEAP: DataView
@@ -229,124 +230,8 @@ function allocate_literal_values(): void {
   // Undefined = heap_allocate(Undefined_tag, 1)
 }
 
-const builtin_implementation = {
-  print: (env: ThreadEnv, arity: number) => {
-    const toPrint = []
-    for (let i = 0; i < arity; i++) {
-      toPrint.push(address_to_TS_value(pop_OS(env.OS))?.toString())
-    }
-    const output = toPrint.reverse().join(' ')
-    console.log(output)
-    return output
-  },
-  sleep: (env: ThreadEnv) => {
-    const val = (address_to_TS_value(pop_OS(env.OS)) as number) + Date.now()
-    env.sleep = heap_allocate_Number(val)
-  },
-  Add: (env: ThreadEnv) => {
-    const arg = pop_OS(env.OS) // Argument to the method
-    const fun = pop_OS(env.OS) // Method to be put back on OS later
-    const obj = pop_OS(env.OS) // Obj whose method is invoked
-    env.OS.push(fun)
-    if (!is_WaitGroup(obj)) {
-      // error handling
-      return
-    }
-    const curr_wg_cnt = heap_get_WaitGroup_counter(obj)
-    const new_wg_cnt = curr_wg_cnt + (address_to_TS_value(arg) as number)
-    if (new_wg_cnt < 0) {
-      console.log('Throw Panic')
-      // not sure what to do here
-    }
-    heap_set_WaitGroup_counter(obj, new_wg_cnt)
-  },
-  Wait: (env: ThreadEnv) => {
-    const fun = pop_OS(env.OS) // Method to be put back on OS later
-    const obj = pop_OS(env.OS) // Obj whose method is invoked
-    env.OS.push(fun)
-    if (!is_WaitGroup(obj)) {
-      // error handling
-      return
-    }
-    // Block until counter is 0
-    const wg_count = heap_get_WaitGroup_counter(obj)
-    if (wg_count > 0) {
-      env.wg_count = obj
-    }
-  },
-  Done: (env: ThreadEnv) => {
-    const fun = pop_OS(env.OS) // Method to be put back on OS later
-    const obj = pop_OS(env.OS) // Obj whose method is invoked
-    env.OS.push(fun)
-    if (!is_WaitGroup(obj)) {
-      // error handling
-      console.log('obj is not a waitgroup')
-      return
-    }
-    const curr_wg_cnt = heap_get_WaitGroup_counter(obj)
-    heap_set_WaitGroup_counter(obj, curr_wg_cnt - 1)
-  },
-  Lock: (env: ThreadEnv) => {
-    const fun = pop_OS(env.OS)
-    const obj = pop_OS(env.OS)
-    env.OS.push(fun)
-    if (!is_Mutex(obj)) {
-      // error handling
-      console.log('obj is not a mutex')
-      return
-    }
-    const mutex_state = heap_get_Mutex_State(obj)
-    if (mutex_state == MUTEX_UNLOCKED_STATE) {
-      heap_set_Mutex(obj, MUTEX_LOCKED_STATE)
-    } else {
-      env.mutex = obj
-    }
-  },
-  Unlock: (env: ThreadEnv) => {
-    const fun = pop_OS(env.OS)
-    const obj = pop_OS(env.OS)
-    env.OS.push(fun)
-    if (!is_Mutex(obj)) {
-      // error handling
-      console.log('obj is not a mutex')
-      return
-    }
-    const mutex_state = heap_get_Mutex_State(obj)
-    if (mutex_state == MUTEX_LOCKED_STATE) {
-      heap_set_Mutex(obj, MUTEX_UNLOCKED_STATE)
-    } else {
-      throw Error('Unlock mutex called but mutex was not locked')
-    }
-  },
-  intchannel: (env: ThreadEnv, arity: number) => {
-    let size = 0
-    if (arity == 1) {
-      size = address_to_TS_value(pop_OS(env.OS)) as number
-    }
-    const address = heap_allocate_Channel(size)
-
-    return address
-  },
-  stringchannel: (env: ThreadEnv, arity: number) => {
-    let size = 0
-    if (arity == 1) {
-      size = address_to_TS_value(pop_OS(env.OS)) as number
-    }
-    const address = heap_allocate_Channel(size)
-
-    return address
-  }
-}
-
 const builtins: BuiltinMap = {}
 const builtin_array: BuiltinFn[] = []
-{
-  let i = 0
-  for (const key in builtin_implementation) {
-    builtins[key] = { tag: 'BUILTIN', id: i, arity: builtin_implementation[key].length }
-    builtin_array[i++] = builtin_implementation[key]
-  }
-}
 
 function apply_builtin(builtin_id: number, env: ThreadEnv, arity: number) {
   const result = builtin_array[builtin_id](env, arity)
@@ -1326,7 +1211,132 @@ export function initialize_env(root?: ThreadEnv): ThreadEnv {
   return env
 }
 
-export function run(heapsize_words: number, instrs: Instruction[]) {
+function init_builtins(externals: Map<String, any>): void {
+  const builtin_implementation = {
+    print: (env: ThreadEnv, arity: number) => {
+      const toPrint = []
+      for (let i = 0; i < arity; i++) {
+        toPrint.push(address_to_TS_value(pop_OS(env.OS))?.toString())
+      }
+      const output = toPrint.reverse().join(' ')
+      
+      // Call external context display to print instead
+      console.log([...externals.keys()])
+      //console.log(output)
+      return output
+    },
+    sleep: (env: ThreadEnv) => {
+      const val = (address_to_TS_value(pop_OS(env.OS)) as number) + Date.now()
+      env.sleep = heap_allocate_Number(val)
+    },
+    Add: (env: ThreadEnv) => {
+      const arg = pop_OS(env.OS) // Argument to the method
+      const fun = pop_OS(env.OS) // Method to be put back on OS later
+      const obj = pop_OS(env.OS) // Obj whose method is invoked
+      env.OS.push(fun)
+      if (!is_WaitGroup(obj)) {
+        // error handling
+        return
+      }
+      const curr_wg_cnt = heap_get_WaitGroup_counter(obj)
+      const new_wg_cnt = curr_wg_cnt + (address_to_TS_value(arg) as number)
+      if (new_wg_cnt < 0) {
+        console.log('Throw Panic')
+        // not sure what to do here
+      }
+      heap_set_WaitGroup_counter(obj, new_wg_cnt)
+    },
+    Wait: (env: ThreadEnv) => {
+      const fun = pop_OS(env.OS) // Method to be put back on OS later
+      const obj = pop_OS(env.OS) // Obj whose method is invoked
+      env.OS.push(fun)
+      if (!is_WaitGroup(obj)) {
+        // error handling
+        return
+      }
+      // Block until counter is 0
+      const wg_count = heap_get_WaitGroup_counter(obj)
+      if (wg_count > 0) {
+        env.wg_count = obj
+      }
+    },
+    Done: (env: ThreadEnv) => {
+      const fun = pop_OS(env.OS) // Method to be put back on OS later
+      const obj = pop_OS(env.OS) // Obj whose method is invoked
+      env.OS.push(fun)
+      if (!is_WaitGroup(obj)) {
+        // error handling
+        console.log('obj is not a waitgroup')
+        return
+      }
+      const curr_wg_cnt = heap_get_WaitGroup_counter(obj)
+      heap_set_WaitGroup_counter(obj, curr_wg_cnt - 1)
+    },
+    Lock: (env: ThreadEnv) => {
+      const fun = pop_OS(env.OS)
+      const obj = pop_OS(env.OS)
+      env.OS.push(fun)
+      if (!is_Mutex(obj)) {
+        // error handling
+        console.log('obj is not a mutex')
+        return
+      }
+      const mutex_state = heap_get_Mutex_State(obj)
+      if (mutex_state == MUTEX_UNLOCKED_STATE) {
+        heap_set_Mutex(obj, MUTEX_LOCKED_STATE)
+      } else {
+        env.mutex = obj
+      }
+    },
+    Unlock: (env: ThreadEnv) => {
+      const fun = pop_OS(env.OS)
+      const obj = pop_OS(env.OS)
+      env.OS.push(fun)
+      if (!is_Mutex(obj)) {
+        // error handling
+        console.log('obj is not a mutex')
+        return
+      }
+      const mutex_state = heap_get_Mutex_State(obj)
+      if (mutex_state == MUTEX_LOCKED_STATE) {
+        heap_set_Mutex(obj, MUTEX_UNLOCKED_STATE)
+      } else {
+        throw Error('Unlock mutex called but mutex was not locked')
+      }
+    },
+    intchannel: (env: ThreadEnv, arity: number) => {
+      let size = 0
+      if (arity == 1) {
+        size = address_to_TS_value(pop_OS(env.OS)) as number
+      }
+      const address = heap_allocate_Channel(size)
+  
+      return address
+    },
+    stringchannel: (env: ThreadEnv, arity: number) => {
+      let size = 0
+      if (arity == 1) {
+        size = address_to_TS_value(pop_OS(env.OS)) as number
+      }
+      const address = heap_allocate_Channel(size)
+  
+      return address
+    }
+  }
+  
+  {
+    let i = 0
+    for (const key in builtin_implementation) {
+      builtins[key] = { tag: 'BUILTIN', id: i, arity: builtin_implementation[key].length }
+      builtin_array[i++] = builtin_implementation[key]
+    }
+  }
+}
+
+export function run(heapsize_words: number, instrs: Instruction[], context: Context) {
+  
+  init_builtins(context.nativeStorage.builtins)
+
   print_code(instrs)
   initialize_heap(heapsize_words)
 
@@ -1345,6 +1355,7 @@ export function run(heapsize_words: number, instrs: Instruction[]) {
     for (let i = 0; i < 3; i++) {
       if (!run_next_instr(thread.instrs, thread.env, thread.microcode, threadPool, cur)) {
         if (cur == 0) {
+          console.log("Exiting...")
           return address_to_TS_value(peek(thread.env.OS, 0))
         }
         threadPool.splice(cur, 1)
@@ -1453,7 +1464,6 @@ function run_next_instr(
   const instr = instrs[env.PC++]
   console.log(threadId, ':', instr, print_OS(env))
   microcode[instr.tag](instr, threadPool)
-
   return true
 }
 

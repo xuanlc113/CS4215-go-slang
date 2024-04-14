@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "pegjs-template": "^1.4.0"
+  }
+}

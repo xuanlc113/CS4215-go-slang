@@ -236,7 +236,7 @@ export async function runFilesInContext(
     return Promise.resolve({
       status: 'finished',
       context,
-      value: console.log(run(5000, instrs))
+      value: run(5000, instrs, context)
     })
   }
 
