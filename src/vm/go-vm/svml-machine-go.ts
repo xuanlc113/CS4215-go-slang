@@ -131,6 +131,9 @@ function heap_set_child(address: number, child_idx: number, value: number): void
 
 // Get pointer tag
 function heap_get_tag(address: number): number {
+  // if (address > heap_size || address < 0) {
+  //   return Null_tag
+  // }
   return HEAP.getInt8(address * word_size)
 }
 
@@ -724,33 +727,33 @@ function pop_RTS(RTS: number[]): number {
   return res as number
 }
 
-function get_orig_return(OS: number[]): number {
+function get_orig_return(OS: number[]): Array<any> {
   if (OS.length == 0) {
     throw Error('No return value in OS')
   }
 
   let pt = 0
 
-  let orig = peek(OS, pt) as number
-
+  let orig : Array<any> = []
   while (pt < OS.length) {
     while (!is_Defer(peek(OS, pt))) {
-      orig = peek(OS, pt) as number
+      push(orig,peek(OS, pt))
       pt++
       if (pt >= OS.length) break
     }
     while (is_Defer(peek(OS, pt))) {
       pt++
     }
-
     const arity = address_to_TS_value(peek(OS, pt)) as number
+
     pt += arity + 2
     if (pt < OS.length && !is_Defer(peek(OS, pt))) {
-      orig = peek(OS, pt)
+      push(orig,peek(OS, pt))
     }
   }
 
-  return orig as number
+  console.log(orig)
+  return orig
 }
 
 function pop_to_defer(OS: number[]) {
@@ -771,6 +774,7 @@ function apply_binop(op: string, v2: number, v1: number): Operand {
   if (is_undefined(addr)) {
     // error handling
   }
+  console.log(addr)
   return addr
 }
 
@@ -1105,6 +1109,7 @@ function create_microcode(env: ThreadEnv) {
     RUNDEFER: instr => {
       const orig = get_orig_return(env.OS)
       pop_to_defer(env.OS)
+
       while (is_Defer(peek(env.OS, 0))) {
         while (is_Defer(peek(env.OS, 0))) {
           pop_OS(env.OS)
@@ -1131,7 +1136,7 @@ function create_microcode(env: ThreadEnv) {
       while (env.OS.length > 0) {
         force_pop_OS(env.OS)
       }
-      push(env.OS, orig)
+      env.OS = orig.reverse()
     },
     SEND: (instr, threadpool) => {
       const chAddr = heap_get_Environment_value(env.E, get_instr_pos(instr))
@@ -1208,6 +1213,9 @@ export function initialize_env(root?: ThreadEnv): ThreadEnv {
   env.channelBlocked = false
   env.waitingToReceive = Null
 
+  console.log(env.OS)
+  console.log(env.RTS)
+
   return env
 }
 
@@ -1223,7 +1231,7 @@ function init_builtins(externals: Map<String, any>): void {
       // Call external context display to print instead
       externals.get('display')(output)
       //console.log(output)
-      return output
+      return heap_allocate_String(output)
     },
     sleep: (env: ThreadEnv) => {
       const val = (address_to_TS_value(pop_OS(env.OS)) as number) + Date.now()
@@ -1425,6 +1433,7 @@ function run_next_instr(
     threadPool.push(threadItem)
 
     env.PC++
+    pop_OS(env.OS) // Pop the thread function
 
     return true
   }
