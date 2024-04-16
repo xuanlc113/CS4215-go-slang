@@ -379,7 +379,8 @@ const compile_comp = {
     instrs[wc++] = {
       tag: 'CONTINUE'
     }
-  }
+  },
+  empty: (comp: ContinueStatement, ce: string[][]) => {}
 }
 
 // const wg_testcode = `

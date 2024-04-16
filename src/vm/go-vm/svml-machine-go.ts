@@ -1221,7 +1221,7 @@ function init_builtins(externals: Map<String, any>): void {
       const output = toPrint.reverse().join(' ')
       
       // Call external context display to print instead
-      console.log([...externals.keys()])
+      externals.get('display')(output)
       //console.log(output)
       return output
     },

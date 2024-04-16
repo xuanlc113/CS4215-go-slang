@@ -8,7 +8,7 @@ import { parse } from "./parser"
 // const parser = peggy.generate(pegContentString)
 
 export function go_parse(code: string): BlkSeqStatement {
-  const program: BlkSeqStatement = { tag: 'blkseq', body: parse(code) }
+  const program: BlkSeqStatement = { tag: 'blkseq', body: parse(code + '\n') }
   return program
 }
 
