@@ -28,6 +28,7 @@ import {
   BreakStatement,
   ContinueStatement
 } from '../go-slang/types'
+// import { go_parse } from '../go-slang'
 // import { run } from '../vm/go-vm/svml-machine-go'
 // export async function goRunner(
 //   code: string,
@@ -243,7 +244,11 @@ const compile_comp = {
     instrs[wc++] = goto_instruction
     const alternative_address = wc
     jump_on_false_instruction.addr = alternative_address
-    compile(comp.alt, ce)
+    if (comp.alt == null) {
+      instrs[wc++] = { tag: 'LDC', val: undefined }
+    } else {
+      compile(comp.alt, ce)
+    }
     goto_instruction.addr = wc
   },
   while: (comp: WhileStatement, ce: string[][]) => {
@@ -383,7 +388,6 @@ const compile_comp = {
   empty: (comp: ContinueStatement, ce: string[][]) => {}
 }
 
-
 // const wg_testcode = `
 // var wg WaitGroup
 
@@ -460,17 +464,18 @@ const compile_comp = {
 //`
 
 // const loop_testcode = `
-// for i := 0; i < 5; i++{
-//   if i == 3 {
-//     continue;
-//   } else {
-//     print(i);
+// func f(x) {
+//   if x > 5 {
+//     return 5
 //   }
+//   return 10
 // }
+// f()
 // `
-// console.log(JSON.stringify(go_parse(loop_testcode)))
+// console.log(JSON.stringify(go_parse(loop_testcode), null, 2))
 
 // const compiled_instrs = compile_program(go_parse(loop_testcode))
+// console.log(compiled_instrs)
 // printInstr(compiled_instrs)
 
 // function printInstr(instrs: Instruction[]) {
