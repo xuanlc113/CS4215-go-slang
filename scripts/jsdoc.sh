@@ -13,7 +13,7 @@ main() {
 	prepare
     elif [ "$1" == "clean" ]; then
 	clean
-    elif [[ "$(git rev-parse --show-toplevel 2> /dev/null)" -ef "$PWD" ]]; then
+    elif [[ true ]]; then
         run
     else
         echo "Please run this command from the git root directory."
