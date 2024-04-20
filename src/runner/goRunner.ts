@@ -347,14 +347,16 @@ const compile_comp = {
     instrs[wc++] = { tag: 'ASSIGN', pos: compile_time_environment_position(ce, comp.sym.sym) }
   },
   goroutine: (comp: GoroutineStatement, ce: string[][]) => {
-    const start_thread_instr = { tag: 'START_THREAD', arity: comp.expr.args.length, addr: 0 }
-    instrs[wc++] = start_thread_instr
     compile(comp.expr.fun, ce)
     for (const arg of comp.expr.args) {
       compile(arg, ce)
     }
-    instrs[wc++] = { tag: 'CALL', arity: comp.expr.args.length }
-    start_thread_instr.addr = wc
+    instrs[wc++] = { tag: 'START_THREAD', arity: comp.expr.args.length }
+    instrs[wc++] = { tag: 'CALL_THREAD', arity: comp.expr.args.length }
+    instrs[wc++] = { tag: 'DONE_THREAD' }
+
+    // instrs[wc++] = { tag: 'CALL', arity: comp.expr.args.length }
+    // const start_thread_instr = { tag: 'START_THREAD', arity: comp.expr.args.length }
 
   },
   def: (comp: DeferStatement, ce: string[][]) => {

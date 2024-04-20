@@ -39,9 +39,7 @@ export interface ThreadEnv {
 export type ThreadPool = ThreadPoolItem[]
 
 export interface ThreadPoolItem {
-  instrs: Instruction[]
   env: ThreadEnv
-  microcode: Microcode
 }
 
 export interface Microcode {
