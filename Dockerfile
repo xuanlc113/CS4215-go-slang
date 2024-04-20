@@ -11,9 +11,12 @@ RUN yarn install
 ADD src/ ./src/
 ADD docs/ ./docs/
 ADD scripts/ ./scripts/
+ADD tests/ ./tests/
 ADD sicp_publish/ ./sicp_publish/ 
 RUN yarn build
 RUN yarn link
+
+RUN yarn jest tests/
 
 WORKDIR /home/node
 RUN git clone https://github.com/xuanlc113/CS4215-frontend.git /home/node/frontend
@@ -22,5 +25,6 @@ WORKDIR /home/node/frontend
 RUN apt-get install libpangocairo-1.0-0 libpango1.0-dev -y
 RUN yarn install
 RUN yarn link 'js-slang'
+
 
 ENTRYPOINT ["yarn", "run", "start"]
