@@ -33,6 +33,7 @@
     "src/**/__mocks__/**",
     "node_modules",
     "dist/**/*",
+    "tests/**/*",
     "**/*.js",
     "sicp_publish",
   ],

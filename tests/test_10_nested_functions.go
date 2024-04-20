@@ -15,6 +15,9 @@ func test1(x, time) {
   defer wg.Done()
   mut.Lock()
   sleep(time)
+
+  defer print(test(5))
+
   if bal > 0 {
     bal = bal - x
   }

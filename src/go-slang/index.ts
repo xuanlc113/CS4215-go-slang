@@ -2,7 +2,7 @@
 // import * as fs from 'fs'
 // import * as path from 'path'
 import { BlkSeqStatement } from './types'
-import { parse } from "./parser"
+import { parse } from "./parser.js"
 // const PEG_FILE: string = path.join(path.resolve(__dirname, '.'), 'golang.pegjs')
 // const pegContent = fs.readFileSync(PEG_FILE, 'utf-8')
 // const parser = peggy.generate(pegContentString)

@@ -5472,7 +5472,8 @@ const peg$allowedStartRules = [
   "Start"
 ];
 
-export {
+export 
+{
   peg$allowedStartRules as StartRules,
   peg$SyntaxError as SyntaxError,
   peg$parse as parse

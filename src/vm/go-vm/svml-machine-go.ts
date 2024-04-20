@@ -523,6 +523,16 @@ function is_Defer(address: number): boolean {
   return heap_get_tag(address) === Defer_tag
 }
 
+function has_Defer(os: Array<any>): boolean {
+  for (let i = 0; i < os.length; i++) {
+    if (is_Defer(os[i])) {
+      return true
+    }
+  }
+  return false
+
+}
+
 // 2 for recording size and cap, + 1 for array space without buffer
 function heap_allocate_Channel(size: number = 0): number {
   const address = heap_allocate(Channel_tag, size + 3)
@@ -1110,26 +1120,31 @@ function create_microcode(env: ThreadEnv) {
       const orig = get_orig_return(env.OS)
       pop_to_defer(env.OS)
 
-      while (is_Defer(peek(env.OS, 0))) {
+      while (has_Defer(env.OS)) {
         while (is_Defer(peek(env.OS, 0))) {
-          pop_OS(env.OS)
+          while (is_Defer(peek(env.OS, 0))) {
+            pop_OS(env.OS)
+          }
+          const arity = address_to_TS_value(pop_OS(env.OS)) as number
+          const fun = peek(env.OS, arity)
+          if (is_Builtin(fun)) {
+            apply_builtin(heap_get_Builtin_id(fun), env, arity)
+            force_pop_OS(env.OS) // ignore result
+            continue
+          }
+          const new_PC = heap_get_Closure_pc(fun)
+          const new_frame = heap_allocate_Frame(arity)
+          for (let i = arity - 1; i >= 0; i--) {
+            heap_set_child(new_frame, i, pop_OS(env.OS))
+          }
+          pop_OS(env.OS) // pop fun
+          push(env.RTS, heap_allocate_Callframe(env.E, env.PC))
+          env.E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun))
+          env.PC = new_PC
+  
+          console.log(env.PC)
         }
-        const arity = address_to_TS_value(pop_OS(env.OS)) as number
-        const fun = peek(env.OS, arity)
-        if (is_Builtin(fun)) {
-          apply_builtin(heap_get_Builtin_id(fun), env, arity)
-          force_pop_OS(env.OS) // ignore result
-          continue
-        }
-        const new_PC = heap_get_Closure_pc(fun)
-        const new_frame = heap_allocate_Frame(arity)
-        for (let i = arity - 1; i >= 0; i--) {
-          heap_set_child(new_frame, i, pop_OS(env.OS))
-        }
-        pop_OS(env.OS) // pop fun
-        push(env.RTS, heap_allocate_Callframe(env.E, env.PC))
-        env.E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun))
-        env.PC = new_PC
+        force_pop_OS(env.OS)
       }
 
       // remove previous defer origs
@@ -1205,6 +1220,8 @@ export function initialize_env(root?: ThreadEnv): ThreadEnv {
   }
 
   const env = cloneDeep(root)
+  env.OS = []
+  env.RTS = []
   //   env.OS.splice(1, env.OS.length - 2) // This has to be related to arity of thread
   //   env.RTS.splice(1, env.RTS.length - 2)
   env.sleep = Null
@@ -1212,9 +1229,6 @@ export function initialize_env(root?: ThreadEnv): ThreadEnv {
   env.mutex = Null
   env.channelBlocked = false
   env.waitingToReceive = Null
-
-  console.log(env.OS)
-  console.log(env.RTS)
 
   return env
 }
@@ -1229,7 +1243,11 @@ function init_builtins(externals: Map<String, any>): void {
       const output = toPrint.reverse().join(' ')
       
       // Call external context display to print instead
-      externals.get('display')(output)
+      if (externals.has('display')) {
+        externals.get('display')(output)
+      } else {
+        console.log(output)
+      }
       //console.log(output)
       return heap_allocate_String(output)
     },
@@ -1421,9 +1439,12 @@ function run_next_instr(
   }
 
   if (instrs[env.PC].tag === 'START_THREAD') {
-    const thread_instrs = instrs.slice(0, env.PC + 1)
-    thread_instrs[env.PC].tag = 'CALL'
-    thread_instrs.push({ tag: 'EXIT_SCOPE' }, { tag: 'DONE' })
+    const thread_instrs = instrs.slice(0, get_instr_addr(instrs[env.PC]) + 1)
+    thread_instrs.push({ tag: 'DONE' })
+
+    console.log(thread_instrs)
+
+    env.PC++
     const newEnv = initialize_env(env)
     const threadItem: ThreadPoolItem = {
       instrs: thread_instrs,
@@ -1432,8 +1453,7 @@ function run_next_instr(
     }
     threadPool.push(threadItem)
 
-    env.PC++
-    pop_OS(env.OS) // Pop the thread function
+    env.PC = get_instr_addr(instrs[env.PC-1]) + 1
 
     return true
   }

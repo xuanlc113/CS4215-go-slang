@@ -1,5 +1,5 @@
 func f(x int) int {
-	return x + 3
+	return x
 }
 
 for i := 0; i < 5; i++ {
