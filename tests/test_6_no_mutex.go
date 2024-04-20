@@ -19,5 +19,3 @@ print(bal)
 
 wg.Wait()
 print("done")
-
-// Cloning of environment/instructions for new go routines is not recommended

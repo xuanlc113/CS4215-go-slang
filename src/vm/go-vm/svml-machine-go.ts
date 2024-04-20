@@ -762,7 +762,7 @@ function get_orig_return(OS: number[]): Array<any> {
     }
   }
 
-  console.log(orig)
+  // console.log(orig)
   return orig
 }
 
@@ -784,7 +784,7 @@ function apply_binop(op: string, v2: number, v1: number): Operand {
   if (is_undefined(addr)) {
     // error handling
   }
-  console.log(addr)
+  // console.log(addr)
   return addr
 }
 
@@ -1397,7 +1397,7 @@ export function run(heapsize_words: number, instrs: Instruction[], context: Cont
     for (let i = 0; i < 3; i++) {
       if (!run_next_instr(instrs, thread.env, threadPool, cur)) {
         if (cur == 0) {
-          console.log("Exiting...")
+          // console.log("Exiting...")
           return address_to_TS_value(peek(thread.env.OS, 0))
         }
         threadPool.splice(cur, 1)
@@ -1467,7 +1467,7 @@ function run_next_instr(
     for (let i = 0; i < get_instr_arity(instrs[env.PC]) + 1; i++) {
       push(newEnv.OS, thread_args[i])
     }
-    console.log(threadId, ':', instrs[env.PC], newEnv.OS)
+    // console.log(threadId, ':', instrs[env.PC], newEnv.OS)
     newEnv.PC++
     const threadItem: ThreadPoolItem = {
       env: newEnv,
@@ -1517,6 +1517,7 @@ function run_next_instr(
   return true
 }
 
+// @ts-ignore: unused
 const print_code = (instrs: Instruction[]) => {
   for (let i = 0; i < instrs.length; i = i + 1) {
     const instr = instrs[i]
